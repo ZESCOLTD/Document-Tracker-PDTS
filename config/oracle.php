@@ -1,0 +1,36 @@
+<?php
+
+return [
+    'oracle' => [
+        'driver'         => 'oracle',
+        'tns'            => env('DB_ORACLE_TNS', ''),
+        'host'           => env('DB_ORACLE_HOST', ''),
+        'port'           => env('DB_ORACLE_PORT', ''),
+        'database'       => env('DB_ORACLE_DATABASE', ''),
+        'username'       => env('DB_ORACLE_USERNAME', ''),
+        'password'       => env('DB_ORACLE_PASSWORD', ''),
+        'charset'        => env('DB_ORACLE_CHARSET', 'AL32UTF8'),
+        'prefix'         => env('DB_ORACLE_PREFIX', ''),
+        'prefix_schema'  => env('DB_ORACLE_SCHEMA_PREFIX', ''),
+        'edition'        => env('DB_ORACLE_EDITION', 'ora$base'),
+        'server_version' => env('DB_ORACLE_SERVER_VERSION', '11g'),
+        'load_balance'   => env('DB_LOAD_BALANCE', 'yes'),
+        'dynamic'        => [],
+    ],
+    'phris_connection' => [
+        'driver'         => 'oracle',
+        'tns'            => env('DB_TNS', ''),
+        'host'           => env('DB_HOST_SECOND', ''),
+        'port'           => env('DB_PORT_SECOND', '1521'),
+        'database'       => env('DB_DATABASE_SECOND', ''),
+        'username'       => env('DB_USERNAME_SECOND', ''),
+        'password'       => env('DB_PASSWORD_SECOND', ''),
+        'charset'        => env('DB_CHARSET', 'AL32UTF8'),
+        'prefix'         => env('DB_PREFIX', ''),
+        'prefix_schema'  => env('DB_SCHEMA_PREFIX', ''),
+        'edition'        => env('DB_EDITION', 'ora$base'),
+        'server_version' => env('DB_SERVER_VERSION', '11g'),
+        'load_balance'   => env('DB_LOAD_BALANCE', 'yes'),
+        'dynamic'        => [],
+    ],
+];
