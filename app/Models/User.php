@@ -133,6 +133,28 @@ class User extends Authenticatable
             ->with('office.department');
     }
 
+    /**
+     * The office shown when tracking documents: the current primary office
+     * assignment, falling back to the HR section or directorate.
+     */
+    public function officeName(): ?string
+    {
+        $assignment = $this->currentPdtsOfficeAssignments()
+            ->orderByDesc('is_primary')
+            ->latest('starts_at')
+            ->first();
+
+        return $assignment?->office?->name ?: $this->functional_section ?: $this->directorate ?: null;
+    }
+
+    /**
+     * Position and office, for example "Finance Manager, Accounts". Empty when unknown.
+     */
+    public function positionAndOffice(): string
+    {
+        return implode(', ', array_unique(array_filter([$this->job_title, $this->officeName()])));
+    }
+
     public function role()
     {
         return $this->belongsTo(\App\Models\Role::class);
