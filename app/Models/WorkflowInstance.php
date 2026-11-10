@@ -50,6 +50,11 @@ class WorkflowInstance extends Model
         return $this->belongsTo(User::class, 'initiated_by');
     }
 
+    public function completedBy()
+    {
+        return $this->belongsTo(User::class, 'completed_by')->withTrashed();
+    }
+
     public function actions()
     {
         return $this->hasMany(WorkflowAction::class);

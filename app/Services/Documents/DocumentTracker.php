@@ -63,14 +63,18 @@ class DocumentTracker
             $forwarded = "Forwarded by {$sender} on ".$movement->forwarded_at?->format('d M Y H:i');
 
             if ($movement->status === MovementStatus::Acknowledged) {
-                $stops[] = $this->stop('Received', $office, $movement->recipient?->name, $movement->acknowledged_at);
+                $receivedOffice = $movement->acknowledged_office ?? $office;
+                $receivedPerson = $movement->newCustodian?->name ?? $movement->acknowledgedBy?->name ?? $movement->recipient?->name;
+                $stops[] = $this->stop('Received', $receivedOffice, $receivedPerson, $movement->acknowledged_at);
                 $next = $received->get($received->search(fn ($m) => $m->is($movement)) + 1);
 
-                $events[] = $this->event('received', 'Received', $office, $movement, $movement->acknowledged_at, [
+                $receivedEvent = $this->event('received', 'Received', $receivedOffice, $movement, $movement->acknowledged_at, [
                     $forwarded,
                     'Acknowledged by '.$movement->acknowledgedBy?->name,
                     $this->heldFor($movement->acknowledged_at, $next?->acknowledged_at, $ended),
                 ]);
+                $receivedEvent['person'] = $receivedPerson;
+                $events[] = $receivedEvent;
             } elseif ($movement->isPending()) {
                 $stops[] = $this->stop('Awaiting Receipt', $office, $movement->recipient?->name, $movement->forwarded_at);
 
@@ -168,7 +172,7 @@ class DocumentTracker
         $latest = $received->last();
 
         return $latest
-            ? $this->recipientOffice($latest)
+            ? ($latest->acknowledged_office ?? $latest->newCustodian?->officeName() ?? $this->recipientOffice($latest))
             : ($document->originating_office ?: $document->movements->first()?->sender_office ?? $document->currentCustodian?->officeName() ?? self::NO_OFFICE);
     }
 

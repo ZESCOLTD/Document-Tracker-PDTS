@@ -23,6 +23,7 @@ class PdtsAccessSeeder extends Seeder
             'documents.complete',
             'documents.cancel',
             'ai.ocr.use',
+                'delegations.manage',
             'reports.view',
             'reports.export',
             'audit.view',

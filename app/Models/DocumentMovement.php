@@ -25,6 +25,8 @@ class DocumentMovement extends Model
         'remarks',
         'acknowledged_at',
         'acknowledged_by',
+        'new_custodian_id',
+        'acknowledged_office',
         'closed_at',
         'closed_by',
         'close_reason',
@@ -64,6 +66,11 @@ class DocumentMovement extends Model
     public function acknowledgedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'acknowledged_by')->withTrashed();
+    }
+
+    public function newCustodian(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'new_custodian_id')->withTrashed();
     }
 
     public function closedBy(): BelongsTo

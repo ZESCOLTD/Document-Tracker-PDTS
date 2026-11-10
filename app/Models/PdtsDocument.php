@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class PdtsDocument extends Model
 {
@@ -27,10 +28,14 @@ class PdtsDocument extends Model
         'current_custodian_id',
         'status',
         'registered_at',
+        'completed_by',
+        'completed_at',
+        'completion_comments',
     ];
 
     protected $casts = [
         'registered_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     public function documentType(): BelongsTo
@@ -46,6 +51,11 @@ class PdtsDocument extends Model
     public function currentCustodian(): BelongsTo
     {
         return $this->belongsTo(User::class, 'current_custodian_id');
+    }
+
+    public function completedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completed_by')->withTrashed();
     }
 
     public function attachments(): HasMany
@@ -79,6 +89,11 @@ class PdtsDocument extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(DocumentMovement::class, 'pdts_document_id');
+    }
+
+    public function workflowInstances(): MorphMany
+    {
+        return $this->morphMany(WorkflowInstance::class, 'workflowable')->latest('id');
     }
 
     public function latestMovement(): HasOne

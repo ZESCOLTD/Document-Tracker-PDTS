@@ -27,7 +27,11 @@ class Custody extends Component
 
     public ?int $cancellingMovementId = null;
 
+    public ?int $completingDocumentId = null;
+
     public string $reason = '';
+
+    public string $completionComments = '';
 
     public ?string $notice = null;
 
@@ -50,6 +54,45 @@ class Custody extends Component
     {
         $this->reset(['cancellingMovementId', 'reason']);
         $this->resetValidation();
+    }
+
+    public function openComplete(int $documentId): void
+    {
+        $this->resetValidation();
+        $this->reset(['completionComments', 'notice', 'errorMessage']);
+        $this->completingDocumentId = $documentId;
+    }
+
+    public function closeComplete(): void
+    {
+        $this->reset(['completingDocumentId', 'completionComments']);
+        $this->resetValidation();
+    }
+
+    public function complete(CustodyService $custody): void
+    {
+        $this->validate([
+            'completionComments' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $document = PdtsDocument::where('current_custodian_id', Auth::id())
+            ->find($this->completingDocumentId);
+
+        try {
+            if (! $document) {
+                throw new CustodyException('This document is no longer in your custody.');
+            }
+
+            $completed = $custody->complete($document, Auth::user(), $this->completionComments);
+            $this->notice = "{$completed->reference_number} has been completed.";
+            $this->errorMessage = null;
+            $this->dispatch('handover-changed');
+        } catch (CustodyException $exception) {
+            $this->notice = null;
+            $this->errorMessage = $exception->getMessage();
+        }
+
+        $this->closeComplete();
     }
 
     public function cancel(CustodyService $custody): void
@@ -96,9 +139,16 @@ class Custody extends Component
                 ->find($this->cancellingMovementId)
             : null;
 
+        $completing = $this->completingDocumentId
+            ? PdtsDocument::where('current_custodian_id', Auth::id())
+                ->where('status', DocumentStatus::Received->value)
+                ->find($this->completingDocumentId)
+            : null;
+
         return view('livewire.movements.custody', [
             'documents' => $documents,
             'cancellingMovement' => $cancelling,
+            'completingDocument' => $completing,
         ])->layout('layouts.master', ['title' => 'Documents in My Custody']);
     }
 }

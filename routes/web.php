@@ -4,10 +4,12 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Http\Controllers\UtilsController;
 use App\Livewire\Admin\EmailLogIndex;
 use App\Livewire\Pdts\Dashboard;
+use App\Livewire\Pdts\Approvals\Inbox as PdtsApprovalInbox;
 use App\Livewire\Pdts\Documents\Index as PdtsDocumentIndex;
 use App\Livewire\Pdts\Documents\Registration as PdtsDocumentRegistration;
 use App\Livewire\Pdts\Documents\Show as PdtsDocumentShow;
 use App\Livewire\Pdts\Organization\Departments as PdtsDepartments;
+use App\Livewire\Pdts\Organization\Delegations as PdtsDelegations;
 use App\Livewire\Pdts\Organization\EmployeeAssignments as PdtsEmployeeAssignments;
 use App\Livewire\Pdts\Organization\Offices as PdtsOffices;
 use App\Livewire\Pdts\OcrWorkbench;
@@ -54,6 +56,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents/register', PdtsDocumentRegistration::class)
         ->middleware('can:documents.register')
         ->name('pdts.documents.register');
+    Route::get('/approvals', PdtsApprovalInbox::class)
+        ->middleware('can:documents.view')
+        ->name('pdts.approvals.inbox');
     Route::get('/documents', PdtsDocumentIndex::class)
         ->middleware('can:documents.view')
         ->name('pdts.documents.index');
@@ -78,6 +83,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/organization/assignments', PdtsEmployeeAssignments::class)
         ->middleware('can:employee_assignments.manage')
         ->name('pdts.organization.assignments');
+    Route::get('/organization/delegations', PdtsDelegations::class)
+        ->middleware('can:delegations.manage')
+        ->name('pdts.organization.delegations');
     Route::get('/notifications', App\Livewire\Notifications\Index::class)->name('notifications.index');
     Route::get('/settings/notifications', NotificationPreferences::class)->name('settings.notifications');
     Route::get('/admin/email-log', EmailLogIndex::class)->name('admin.email_log');

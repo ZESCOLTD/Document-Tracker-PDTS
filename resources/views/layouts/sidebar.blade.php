@@ -38,11 +38,18 @@
                             </a>
                         </li>
                     @endcan
+                    @can('documents.view')
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.approvals.inbox') }}" class="nav-link {{ request()->routeIs('pdts.approvals.*') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-stamp"></i><p>Approval Inbox</p>
+                            </a>
+                        </li>
+                    @endcan
                 @endcanany
 
                 @include('layouts.partials.movements-sidebar')
 
-                @canany(['departments.manage', 'offices.manage', 'employee_assignments.manage'])
+                @canany(['departments.manage', 'offices.manage', 'employee_assignments.manage', 'delegations.manage'])
                     <li class="nav-header text-uppercase" style="color: {{ config('theme.color_accent') }}">ORGANIZATION</li>
                     @can('departments.manage')
                         <li class="nav-item">
@@ -62,6 +69,13 @@
                         <li class="nav-item">
                             <a href="{{ route('pdts.organization.assignments') }}" class="nav-link {{ request()->routeIs('pdts.organization.assignments') ? 'active' : '' }}">
                                 <i class="nav-icon fas fa-user-tie"></i><p>Employee Assignments</p>
+                            </a>
+                        </li>
+                    @endcan
+                    @can('delegations.manage')
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.organization.delegations') }}" class="nav-link {{ request()->routeIs('pdts.organization.delegations') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-user-shield"></i><p>Acknowledgement Delegations</p>
                             </a>
                         </li>
                     @endcan

@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Enums\MovementStatus;
 use App\Models\DocumentMovement;
 use App\Models\PdtsDocument;
+use App\Models\PdtsUserDelegation;
 use App\Models\User;
 use App\Notifications\DocumentHandoverNotification;
 use Illuminate\Database\Eloquent\Builder;
@@ -62,7 +63,11 @@ class CustodyService
             throw new CustodyException('This document already has a handover awaiting receipt.');
         }
 
-        $this->notify([$recipient], $movement, DocumentHandoverNotification::FORWARDED);
+        $this->notify(
+            [$recipient, ...$this->activeDelegates($recipient)->all()],
+            $movement,
+            DocumentHandoverNotification::FORWARDED,
+        );
 
         return $movement;
     }
@@ -72,27 +77,35 @@ class CustodyService
         $movement = DB::transaction(function () use ($movement, $user) {
             [$document, $locked] = $this->lockPending($movement);
 
-            if (! $this->isRecipient($locked, $user)) {
-                throw new CustodyException('Only the intended recipient can acknowledge this document.');
-            }
-
             if (! $user->can('documents.acknowledge')) {
                 throw new CustodyException('You do not have permission to acknowledge documents.');
+            }
+
+            $isDelegate = ! $this->isRecipient($locked, $user)
+                && $this->isActiveDelegate($locked, $user);
+
+            if (! $this->isRecipient($locked, $user) && ! $isDelegate) {
+                throw new CustodyException('Only the intended recipient or an authorized delegate can acknowledge this document.');
             }
 
             $locked->update([
                 'status' => MovementStatus::Acknowledged,
                 'acknowledged_at' => now(),
                 'acknowledged_by' => $user->getKey(),
+                'acknowledged_office' => $user->officeName(),
+                'new_custodian_id' => $user->getKey(),
                 'open_document_id' => null,
             ]);
 
             $document->update([
-                'current_custodian_id' => $locked->recipient_id,
+                'current_custodian_id' => $user->getKey(),
                 'status' => DocumentStatus::Received->value,
             ]);
 
-            $this->audit($document, $user, 'handover_acknowledged', $locked);
+            $this->audit($document, $user, 'handover_acknowledged', $locked, [
+                'actual_custodian_id' => $user->getKey(),
+                'acknowledged_on_behalf_of' => $isDelegate ? $locked->recipient_id : null,
+            ]);
 
             return $locked;
         });
@@ -153,6 +166,50 @@ class CustodyService
         return $movement;
     }
 
+    public function complete(PdtsDocument $document, User $user, string $comments): PdtsDocument
+    {
+        $comments = $this->cleanReason($comments);
+
+        return DB::transaction(function () use ($document, $user, $comments): PdtsDocument {
+            $locked = $this->lockDocument($document->getKey());
+
+            if (! $user->can('documents.complete')) {
+                throw new CustodyException('You do not have permission to complete documents.');
+            }
+
+            if ((int) $locked->current_custodian_id !== (int) $user->getKey()) {
+                throw new CustodyException('Only the current custodian can complete this document.');
+            }
+
+            if ($locked->pendingMovement()->exists()) {
+                throw new CustodyException('Cancel or resolve the pending handover before completing this document.');
+            }
+
+            if ($locked->statusEnum() !== DocumentStatus::Received) {
+                throw new CustodyException('A document must be acknowledged before it can be completed.');
+            }
+
+            $locked->update([
+                'status' => DocumentStatus::Completed->value,
+                'completed_by' => $user->getKey(),
+                'completed_at' => now(),
+                'completion_comments' => $comments,
+            ]);
+
+            $locked->auditLogs()->create([
+                'actor_id' => $user->getKey(),
+                'occurred_at' => now(),
+                'action' => 'completed',
+                'details' => [
+                    'completed_by' => $user->getKey(),
+                    'completion_comments' => $comments,
+                ],
+            ]);
+
+            return $locked->fresh(['documentType', 'currentCustodian', 'completedBy']);
+        }, attempts: 3);
+    }
+
     /**
      * Why this user cannot forward this document right now, or null if they can.
      */
@@ -198,6 +255,11 @@ class CustodyService
                 ->where(fn (Builder $query) => $query
                     ->where('sender_id', $userId)
                     ->orWhere('recipient_id', $userId))
+                ->exists()
+            || PdtsUserDelegation::query()
+                ->activeAt()
+                ->where('delegate_user_id', $userId)
+                ->whereIn('principal_user_id', $document->movements()->select('recipient_id'))
                 ->exists();
     }
 
@@ -247,6 +309,32 @@ class CustodyService
     private function isRecipient(DocumentMovement $movement, User $user): bool
     {
         return (int) $movement->recipient_id === (int) $user->getKey();
+    }
+
+    private function isActiveDelegate(DocumentMovement $movement, User $user): bool
+    {
+        return PdtsUserDelegation::query()
+            ->activeAt()
+            ->where('principal_user_id', $movement->recipient_id)
+            ->where('delegate_user_id', $user->getKey())
+            ->exists();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    private function activeDelegates(User $principal): \Illuminate\Support\Collection
+    {
+        return User::permission('documents.acknowledge')
+            ->whereIn('id', PdtsUserDelegation::query()
+                ->activeAt()
+                ->where('principal_user_id', $principal->getKey())
+                ->select('delegate_user_id'))
+            ->where('is_banned', false)
+            ->where(fn (Builder $query) => $query
+                ->whereNull('banned_until')
+                ->orWhere('banned_until', '<=', now()))
+            ->get();
     }
 
     /**

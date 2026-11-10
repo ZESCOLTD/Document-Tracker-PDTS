@@ -4,6 +4,7 @@ namespace App\Livewire\Movements;
 
 use App\Enums\MovementStatus;
 use App\Models\DocumentMovement;
+use App\Models\PdtsUserDelegation;
 use App\Services\Documents\CustodyException;
 use App\Services\Documents\CustodyService;
 use Illuminate\Support\Facades\Auth;
@@ -67,8 +68,15 @@ class Pending extends Component
 
     public function render()
     {
+        $delegatedPrincipalIds = PdtsUserDelegation::query()
+            ->activeAt()
+            ->where('delegate_user_id', Auth::id())
+            ->select('principal_user_id');
+
         $query = DocumentMovement::query()
-            ->where('recipient_id', Auth::id())
+            ->where(fn ($query) => $query
+                ->where('recipient_id', Auth::id())
+                ->orWhereIn('recipient_id', $delegatedPrincipalIds))
             ->where('status', MovementStatus::AwaitingReceipt->value)
             ->whereHas('document');
 

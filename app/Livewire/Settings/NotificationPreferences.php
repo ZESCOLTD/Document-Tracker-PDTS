@@ -14,6 +14,7 @@ class NotificationPreferences extends Component
     public array $categories = [
         'documents' => true,
         'handovers' => true,
+        'approvals' => true,
         'completion' => true,
         'overdue' => true,
         'system' => true,
@@ -22,6 +23,7 @@ class NotificationPreferences extends Component
     public array $categoryLabels = [
         'documents' => 'Document registration and updates',
         'handovers' => 'Forwarding and receipt acknowledgement',
+        'approvals' => 'Document approval requests and decisions',
         'completion' => 'Document completion and cancellation',
         'overdue' => 'Overdue handover reminders',
         'system' => 'System announcements',

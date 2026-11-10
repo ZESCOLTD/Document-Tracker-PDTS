@@ -38,6 +38,11 @@ class DocumentHandoverNotification extends Notification
         $reference = $document->reference_number;
         $sender = $this->movement->sender?->name ?? 'A user';
         $recipient = $this->movement->recipient?->name ?? 'The recipient';
+        $acknowledger = $this->movement->acknowledgedBy?->name ?? $recipient;
+        $newCustodian = $this->movement->newCustodian?->name ?? $recipient;
+        $acknowledgementMessage = (int) $this->movement->acknowledged_by === (int) $this->movement->recipient_id
+            ? "{$recipient} acknowledged {$reference} and is now the custodian."
+            : "{$acknowledger} acknowledged {$reference} on behalf of {$recipient}; {$newCustodian} is now the recorded custodian.";
         $history = route('movements.history', $document);
 
         [$title, $message, $url, $icon] = match ($this->event) {
@@ -49,7 +54,7 @@ class DocumentHandoverNotification extends Notification
             ],
             self::ACKNOWLEDGED => [
                 'Document receipt acknowledged',
-                "{$recipient} acknowledged {$reference} and is now the custodian.",
+                $acknowledgementMessage,
                 $history,
                 'fas fa-check-circle text-success',
             ],

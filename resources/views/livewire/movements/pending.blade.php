@@ -14,7 +14,7 @@
                         <th>Reference</th>
                         <th>Subject</th>
                         <th>Type</th>
-                        <th>From</th>
+                        <th>From / for</th>
                         <th>Date Sent</th>
                         <th>Remarks</th>
                         <th>Document</th>
@@ -27,7 +27,12 @@
                             <td class="text-nowrap">{{ $movement->document->reference_number }}</td>
                             <td>{{ $movement->document->title }}</td>
                             <td>{{ $movement->document->documentType?->name ?? '—' }}</td>
-                            <td>{{ $movement->sender->name }}</td>
+                            <td>
+                                {{ $movement->sender->name }}
+                                @if((int) $movement->recipient_id !== (int) auth()->id())
+                                    <div class="small text-info">For {{ $movement->recipient->name }}</div>
+                                @endif
+                            </td>
                             <td class="text-nowrap">{{ $movement->forwarded_at->format('d M Y H:i') }}</td>
                             <td>{{ $movement->remarks ?? '—' }}</td>
                             <td class="text-nowrap">
@@ -43,9 +48,11 @@
                                 <button type="button" class="btn btn-sm btn-success" wire:click="openAcknowledge({{ $movement->id }})">
                                     Acknowledge
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" wire:click="openDecline({{ $movement->id }})">
-                                    Decline
-                                </button>
+                                @if((int) $movement->recipient_id === (int) auth()->id())
+                                    <button type="button" class="btn btn-sm btn-outline-danger" wire:click="openDecline({{ $movement->id }})">
+                                        Decline
+                                    </button>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -71,7 +78,11 @@
                         <div class="modal-body">
                             <p class="mb-2"><strong>{{ $dialogMovement->document->reference_number }}</strong>: {{ $dialogMovement->document->title }}</p>
                             <p class="text-muted">From {{ $dialogMovement->sender->name }}</p>
-                            <p class="font-weight-bold mb-1">I confirm I physically have this document.</p>
+                            @if((int) $dialogMovement->recipient_id !== (int) auth()->id())
+                                <p class="font-weight-bold mb-1">I confirm I physically have this document as an authorized delegate for {{ $dialogMovement->recipient->name }}.</p>
+                            @else
+                                <p class="font-weight-bold mb-1">I confirm I physically have this document.</p>
+                            @endif
                             <p class="small text-muted mb-0">You will become its recorded custodian.</p>
                         </div>
                         <div class="modal-footer">
