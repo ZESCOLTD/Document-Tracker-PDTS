@@ -178,6 +178,16 @@
                                wire:model.live.debounce.300ms="search">
 
                         <select class="form-control form-control-sm"
+                                style="width:190px;"
+                                aria-label="Filter by role"
+                                wire:model.live="roleFilter">
+                            <option value="">All Roles</option>
+                            @foreach ($roles as $roleOption)
+                                <option value="{{ $roleOption->name }}">{{ $roleOption->name }}</option>
+                            @endforeach
+                        </select>
+
+                        <select class="form-control form-control-sm"
                                 style="width:150px;"
                                 wire:model.live="statusFilter">
                             <option value="">All Status</option>
@@ -208,6 +218,7 @@
                         <th>Contact</th>
                         <th>Job</th>
                         <th>Directorate</th>
+                        <th>Role</th>
                         <th>Status</th>
 {{--                        <th>Activity</th>--}}
                         <th class="text-center">Actions</th>
@@ -259,6 +270,14 @@
                             <td>{{ $user->job_title }}</td>
 
                             <td>{{ $user->directorate }}</td>
+
+                            <td data-role-cell>
+                                @forelse ($user->roles as $userRole)
+                                    <span class="badge badge-light border px-2 py-1">{{ $userRole->name }}</span>
+                                @empty
+                                    <span class="text-muted small">No role</span>
+                                @endforelse
+                            </td>
 
                             <td>
                                 <span class="badge px-3 py-2
@@ -437,6 +456,18 @@
                                    class="form-control"
                                    wire:model.defer="modal_directorate"
                                    readonly>
+                        </div>
+
+                        {{-- ROLE --}}
+                        <div class="col-md-6 mb-3">
+                            <label for="modal-role">Role</label>
+                            <select id="modal-role" class="form-control @error('modal_role') is-invalid @enderror" wire:model.defer="modal_role">
+                                <option value="">No role yet</option>
+                                @foreach ($roles as $roleOption)
+                                    <option value="{{ $roleOption->name }}">{{ $roleOption->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('modal_role') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
 
                         {{-- AVATAR --}}

@@ -98,10 +98,10 @@
 
                 <div class="col-md-6">
                     <label class="form-label">Role</label>
-                    <select class="form-select" wire:model="role_id">
+                    <select class="form-select @error('role') is-invalid @enderror" wire:model="role">
                         <option value="">Select Role</option>
-                        @foreach($roles as $role)
-                            <option value="{{ $role->id }}">{{ $role->name }}</option>
+                        @foreach($roles as $roleOption)
+                            <option value="{{ $roleOption->name }}">{{ $roleOption->name }}</option>
                         @endforeach
                     </select>
                 </div>

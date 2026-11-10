@@ -35,12 +35,14 @@
 
         <div class="col-md-6">
             <label class="form-label">Role</label>
-            <select class="form-select" wire:model="role_id">
-                <option value="">Select Role</option>
-                @foreach($roles as $role)
-                    <option value="{{ $role->id }}">{{ $role->name }}</option>
+            <select class="form-select form-control @error('role') is-invalid @enderror" wire:model="role">
+                <option value="">No role (no access)</option>
+                @foreach($roles as $roleOption)
+                    <option value="{{ $roleOption->name }}">{{ $roleOption->name }}</option>
                 @endforeach
             </select>
+            @error('role') <div class="invalid-feedback">{{ $message }}</div> @enderror
+            <small class="form-text text-muted">Controls what this user can see and do.</small>
         </div>
 
         <div class="col-md-6">

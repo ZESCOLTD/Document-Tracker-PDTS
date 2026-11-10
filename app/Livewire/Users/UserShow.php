@@ -11,7 +11,7 @@ class UserShow extends Component
 {
     public User $user;
 
-    public $name, $email, $role_id, $mobile_no, $man_no, $password;
+    public $name, $email, $mobile_no, $man_no, $password;
 
     public function mount(User $user)
     {
@@ -19,7 +19,6 @@ class UserShow extends Component
 
         $this->name = $user->name;
         $this->email = $user->email;
-        $this->role_id = $user->role_id;
         $this->mobile_no = $user->mobile_no;
         $this->man_no = $user->man_no;
     }
@@ -29,7 +28,6 @@ class UserShow extends Component
         $this->validate([
             'name' => 'required',
             'email' => 'nullable|email|unique:users,email,' . $this->user->id,
-            'role_id' => 'required',
         ]);
 
         $this->user->update([
@@ -37,7 +35,6 @@ class UserShow extends Component
             'email' => $this->email,
             'mobile_no' => $this->mobile_no,
             'man_no' => $this->man_no,
-            'role_id' => $this->role_id,
         ]);
 
         if ($this->password) {
