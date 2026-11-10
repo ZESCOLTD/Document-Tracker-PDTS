@@ -2,14 +2,20 @@
 
 namespace App\Livewire\Users;
 
+use App\Actions\Users\ChangeUserRole;
 use App\Models\User;
 use App\Models\Role;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Illuminate\Support\Facades\Hash;
 
 class UserCreate extends Component
 {
-    public $name, $email, $password, $role_id, $mobile_no, $man_no;
+    public $name, $email, $password, $mobile_no, $man_no;
+
+    // Spatie role name.
+    public string $role = '';
 
     protected function rules()
     {
@@ -17,7 +23,7 @@ class UserCreate extends Component
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|unique:users,email',
             'password' => 'required|min:6',
-            'role_id' => 'required',
+            'role' => ['required', ...array_slice(ChangeUserRole::rule(), 1)],
             'mobile_no' => 'nullable',
             'man_no' => 'nullable|unique:users,man_no',
         ];
@@ -27,14 +33,13 @@ class UserCreate extends Component
     {
         $this->validate();
 
-        User::create([
+        DB::transaction(fn () => tap(User::create([
             'name' => $this->name,
             'email' => $this->email,
             'mobile_no' => $this->mobile_no,
             'man_no' => $this->man_no,
             'password' => Hash::make($this->password),
-            'role_id' => $this->role_id,
-        ]);
+        ]), fn (User $user) => app(ChangeUserRole::class)($user, $this->role, Auth::user())));
 
         session()->flash('success', 'User created successfully.');
 

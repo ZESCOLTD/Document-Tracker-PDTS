@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Users;
 
+use App\Actions\Users\ChangeUserRole;
 use App\Models\User;
 use App\Models\Role;
+use Illuminate\Support\Facades\Auth;
 use App\Models\IpaPhrisView;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -29,6 +31,7 @@ class UserIndex extends Component
     public $modal_email;
     public $modal_directorate;
     public $modal_job_title;
+    public string $modal_role = '';
 
     // 🖼 Avatar upload
     public $avatar;
@@ -130,6 +133,8 @@ class UserIndex extends Component
             return;
         }
 
+        $this->validate(['modal_role' => ChangeUserRole::rule()]);
+
         if (User::where('man_no', $this->modal_man_no)->exists()) {
             session()->flash('error', 'User already exists.');
             return;
@@ -141,7 +146,7 @@ class UserIndex extends Component
             $avatarPath = $this->avatar->store('avatars', 'public');
         }
 
-        User::create([
+        DB::transaction(fn () => tap(User::create([
             /*
             |--------------------------------------------------------------------------
             | BASIC DETAILS
@@ -201,7 +206,7 @@ class UserIndex extends Component
             */
             'avatar' => $avatarPath,
             'password' => bcrypt('12345678'),
-        ]);
+        ]), fn (User $user) => app(ChangeUserRole::class)($user, $this->modal_role, Auth::user(), 'modal_role')));
 
         $this->reset([
             'modal_man_no',
@@ -209,6 +214,7 @@ class UserIndex extends Component
             'modal_email',
             'modal_directorate',
             'modal_job_title',
+            'modal_role',
             'avatar'
         ]);
 
@@ -289,7 +295,7 @@ class UserIndex extends Component
         |--------------------------------------------------------------------------
         */
         if (!empty($this->roleFilter)) {
-            $query->where('users.role_id', $this->roleFilter);
+            $query->whereHas('roles', fn ($q) => $q->where('name', $this->roleFilter));
         }
 
         /*
@@ -303,7 +309,7 @@ class UserIndex extends Component
             $query->where('users.is_banned', true);
         }
 
-        $users = $query->orderByDesc('users.created_at')->paginate(10);
+        $users = $query->with('roles')->orderByDesc('users.created_at')->paginate(10);
 
         /*
         |--------------------------------------------------------------------------
@@ -322,7 +328,8 @@ class UserIndex extends Component
             'totalUsers' => $totalUsers,
             'activeUsers' => $activeUsers,
             'bannedUsers' => $bannedUsers,
-            'adminUsers' => 0,
+            // whereHas, because User::role() is an old relationship that hides Spatie's scope.
+            'adminUsers' => User::whereHas('roles', fn ($q) => $q->where('name', 'System Administrator'))->count(),
             'newUsersThisMonth' => $newUsersThisMonth,
             'activePercentage' => $totalUsers > 0
                 ? round(($activeUsers / $totalUsers) * 100)

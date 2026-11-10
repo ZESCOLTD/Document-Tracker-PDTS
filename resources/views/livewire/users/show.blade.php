@@ -82,7 +82,7 @@
                 <div class="card-body">
                     <small class="text-muted">Role</small>
                     <h5 class="mb-0">
-                        {{ $user->role->name ?? '—' }}
+                        {{ $user->getRoleNames()->implode(', ') ?: 'No role' }}
                     </h5>
                 </div>
             </div>

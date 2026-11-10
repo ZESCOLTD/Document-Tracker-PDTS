@@ -55,6 +55,13 @@
                 <button type="button" class="close" data-dismiss="alert">&times;</button>
             </div>
         @endif
+
+        {{-- Shown here too, in case the Profile tab is not the open one. --}}
+        @error('role')
+            <div class="alert alert-danger m-3" role="alert" data-role-error>
+                <i class="fas fa-exclamation-circle mr-2"></i>{{ $message }}
+            </div>
+        @enderror
         {{-- TABS --}}
         <div class="card-header p-0 border-0">
             <ul class="nav nav-tabs" id="userTabs" role="tablist"
