@@ -4,6 +4,13 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Http\Controllers\UtilsController;
 use App\Livewire\Admin\EmailLogIndex;
 use App\Livewire\Pdts\Dashboard;
+use App\Livewire\Pdts\Documents\Index as PdtsDocumentIndex;
+use App\Livewire\Pdts\Documents\Registration as PdtsDocumentRegistration;
+use App\Livewire\Pdts\Documents\Show as PdtsDocumentShow;
+use App\Livewire\Pdts\Organization\Departments as PdtsDepartments;
+use App\Livewire\Pdts\Organization\EmployeeAssignments as PdtsEmployeeAssignments;
+use App\Livewire\Pdts\Organization\Offices as PdtsOffices;
+use App\Livewire\Pdts\OcrWorkbench;
 use App\Livewire\Settings\NotificationPreferences;
 use App\Livewire\Support\AdminChatCenter;
 use App\Livewire\Users\UserCreate;
@@ -11,6 +18,7 @@ use App\Livewire\Users\UserEdit;
 use App\Livewire\Users\UserIndex;
 use App\Livewire\Users\UserShow;
 use App\Livewire\Workflows\WorkflowApprovers;
+use App\Http\Controllers\PdtsDocumentAttachmentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
@@ -43,6 +51,33 @@ Route::post('/register/verify', function (Request $request, CreateNewUser $creat
 })->name('register.verify');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', Dashboard::class)->name('dashboard');
+    Route::get('/documents/register', PdtsDocumentRegistration::class)
+        ->middleware('can:documents.register')
+        ->name('pdts.documents.register');
+    Route::get('/documents', PdtsDocumentIndex::class)
+        ->middleware('can:documents.view')
+        ->name('pdts.documents.index');
+    Route::get('/documents/{document}', PdtsDocumentShow::class)
+        ->whereNumber('document')
+        ->middleware('can:documents.view')
+        ->name('pdts.documents.show');
+    Route::get('/documents/{document}/attachments/{attachment}', PdtsDocumentAttachmentController::class)
+        ->whereNumber('document')
+        ->whereNumber('attachment')
+        ->middleware('can:documents.view')
+        ->name('pdts.documents.attachments.download');
+    Route::get('/ai/ocr', OcrWorkbench::class)
+        ->middleware('can:ai.ocr.use')
+        ->name('pdts.ai.ocr');
+    Route::get('/organization/departments', PdtsDepartments::class)
+        ->middleware('can:departments.manage')
+        ->name('pdts.organization.departments');
+    Route::get('/organization/offices', PdtsOffices::class)
+        ->middleware('can:offices.manage')
+        ->name('pdts.organization.offices');
+    Route::get('/organization/assignments', PdtsEmployeeAssignments::class)
+        ->middleware('can:employee_assignments.manage')
+        ->name('pdts.organization.assignments');
     Route::get('/notifications', App\Livewire\Notifications\Index::class)->name('notifications.index');
     Route::get('/settings/notifications', NotificationPreferences::class)->name('settings.notifications');
     Route::get('/admin/email-log', EmailLogIndex::class)->name('admin.email_log');

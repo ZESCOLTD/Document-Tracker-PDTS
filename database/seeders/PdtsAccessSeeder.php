@@ -22,6 +22,7 @@ class PdtsAccessSeeder extends Seeder
             'documents.acknowledge',
             'documents.complete',
             'documents.cancel',
+            'ai.ocr.use',
             'reports.view',
             'reports.export',
             'audit.view',
@@ -29,6 +30,8 @@ class PdtsAccessSeeder extends Seeder
             'users.manage',
             'workflow.view',
             'departments.manage',
+            'offices.manage',
+            'employee_assignments.manage',
             'document_types.manage',
             'workflows.manage',
             'configuration.view',
@@ -52,6 +55,7 @@ class PdtsAccessSeeder extends Seeder
             'documents.update',
             'documents.forward',
             'documents.acknowledge',
+            'ai.ocr.use',
         ];
 
         $roles = [

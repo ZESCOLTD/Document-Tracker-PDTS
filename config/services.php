@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'pdts_ai' => [
+        'url' => env('AI_SERVICE_URL', 'http://127.0.0.1:8001'),
+        'token' => env('AI_SERVICE_TOKEN') ?: env('APP_KEY'),
+        'timeout' => (int) env('AI_SERVICE_TIMEOUT', 180),
+    ],
+
 ];

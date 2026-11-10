@@ -120,6 +120,19 @@ class User extends Authenticatable
     {
         return $this->hasMany(WorkflowStepApprover::class);
     }
+
+    public function pdtsOfficeAssignments()
+    {
+        return $this->hasMany(PdtsEmployeeOfficeAssignment::class);
+    }
+
+    public function currentPdtsOfficeAssignments()
+    {
+        return $this->pdtsOfficeAssignments()
+            ->whereNull('ends_at')
+            ->with('office.department');
+    }
+
     public function role()
     {
         return $this->belongsTo(\App\Models\Role::class);

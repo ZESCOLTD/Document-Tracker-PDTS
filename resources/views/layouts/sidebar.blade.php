@@ -22,6 +22,57 @@
                     </li>
                 @endcan
 
+                @canany(['documents.view', 'documents.register'])
+                    <li class="nav-header text-uppercase" style="color: {{ config('theme.color_accent') }}">DOCUMENTS</li>
+                    @can('documents.view')
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.documents.index') }}" class="nav-link {{ request()->routeIs('pdts.documents.index', 'pdts.documents.show') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-folder-open"></i><p>Registered Documents</p>
+                            </a>
+                        </li>
+                    @endcan
+                    @can('documents.register')
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.documents.register') }}" class="nav-link {{ request()->routeIs('pdts.documents.register') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-file-circle-plus"></i><p>Register Document</p>
+                            </a>
+                        </li>
+                    @endcan
+                @endcanany
+
+                @canany(['departments.manage', 'offices.manage', 'employee_assignments.manage'])
+                    <li class="nav-header text-uppercase" style="color: {{ config('theme.color_accent') }}">ORGANIZATION</li>
+                    @can('departments.manage')
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.organization.departments') }}" class="nav-link {{ request()->routeIs('pdts.organization.departments') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-sitemap"></i><p>Departments</p>
+                            </a>
+                        </li>
+                    @endcan
+                    @can('offices.manage')
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.organization.offices') }}" class="nav-link {{ request()->routeIs('pdts.organization.offices') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-building"></i><p>Offices</p>
+                            </a>
+                        </li>
+                    @endcan
+                    @can('employee_assignments.manage')
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.organization.assignments') }}" class="nav-link {{ request()->routeIs('pdts.organization.assignments') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-user-tie"></i><p>Employee Assignments</p>
+                            </a>
+                        </li>
+                    @endcan
+                @endcanany
+
+                @can('ai.ocr.use')
+                    <li class="nav-item">
+                        <a href="{{ route('pdts.ai.ocr') }}" class="nav-link {{ request()->routeIs('pdts.ai.ocr') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-file-alt"></i><p>Document OCR Review</p>
+                        </a>
+                    </li>
+                @endcan
+
                 @canany(['users.view', 'workflow.view', 'configuration.view'])
                     <li class="nav-header text-uppercase" style="color: {{ config('theme.color_accent') }}">SETTINGS</li>
                 @endcanany
