@@ -111,3 +111,4 @@ Route::get('/getEmployee', [UtilsController::class, 'getEmployee'])->name('getEm
 Route::get('/getManNumbersFiltered', [UtilsController::class, 'getManNumbers'])->name('getManNumbersFiltered');
 
 require __DIR__.'/settings.php';
+require __DIR__.'/movements.php';
