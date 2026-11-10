@@ -96,6 +96,24 @@
         .nav-link.active .nav-icon {
             color: #fff !important;
         }
+
+        /* Document Tracking menu: no accent colour */
+        .doc-tracking-menu .nav-icon {
+            color: #fff !important;
+        }
+
+        .doc-tracking-menu > .nav-link {
+            background-color: transparent !important;
+            box-shadow: none !important;
+        }
+
+        .doc-tracking-menu > .nav-link:hover {
+            background-color: rgba(255, 255, 255, .1) !important;
+        }
+
+        .doc-tracking-menu .nav-treeview .nav-link.active {
+            background-color: rgba(255, 255, 255, .15) !important;
+        }
         .nav-link p {
             color: #fff !important;
         }

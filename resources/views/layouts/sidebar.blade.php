@@ -40,6 +40,8 @@
                     @endcan
                 @endcanany
 
+                @include('layouts.partials.movements-sidebar')
+
                 @canany(['departments.manage', 'offices.manage', 'employee_assignments.manage'])
                     <li class="nav-header text-uppercase" style="color: {{ config('theme.color_accent') }}">ORGANIZATION</li>
                     @can('departments.manage')
