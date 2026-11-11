@@ -53,7 +53,6 @@
                                 \App\Enums\DocumentStatus::Registered => 1,
                                 \App\Enums\DocumentStatus::AwaitingReceipt => 2,
                                 \App\Enums\DocumentStatus::Received => 3,
-                                \App\Enums\DocumentStatus::Completed => 4,
                                 default => 0,
                             };
                             $since = $pending?->forwarded_at ?? $receipt?->acknowledged_at ?? $document->registered_at;
@@ -67,8 +66,8 @@
                                 <div class="small text-muted">{{ $document->documentType?->name }}</div>
                             </td>
                             <td class="text-nowrap" data-progress-step="{{ $step }}">
-                                <ol class="track-steps" aria-label="Step {{ $step }} of 4">
-                                    @foreach (['Registered', 'Sent', 'Received', 'Completed'] as $index => $stepLabel)
+                                <ol class="track-steps" aria-label="Step {{ $step }} of 3">
+                                    @foreach (['Registered', 'Sent', 'Received'] as $index => $stepLabel)
                                         <li class="{{ $index < $step ? 'done' : '' }} {{ $index + 1 === $step ? 'current' : '' }}" title="{{ $stepLabel }}">
                                             <span class="track-step"></span>
                                         </li>
@@ -107,8 +106,6 @@
                             <td colspan="6" class="text-center text-muted py-4">
                                 @if ($search !== '')
                                     No documents match "{{ $search }}".
-                                @elseif ($tab === 'completed')
-                                    None of your documents have been completed yet.
                                 @else
                                     You have not registered any documents.
                                 @endif

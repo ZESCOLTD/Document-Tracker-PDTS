@@ -2,7 +2,6 @@
 
 namespace App\Services\Documents;
 
-use App\Enums\DocumentStatus;
 use App\Enums\MovementStatus;
 use App\Models\DocumentMovement;
 use App\Models\PdtsDocument;
@@ -39,7 +38,6 @@ class DocumentTracker
 
         $received = $movements->filter(fn (DocumentMovement $m) => $m->status === MovementStatus::Acknowledged)->values();
         $pending = $movements->first(fn (DocumentMovement $m) => $m->isPending());
-        $ended = in_array($document->statusEnum(), [DocumentStatus::Completed, DocumentStatus::Cancelled], true);
 
         $registeredLog = $document->auditLogs->firstWhere('action', 'registered');
         $registrant = $document->registrar ?? $registeredLog?->actor ?? $movements->first()?->sender ?? $document->currentCustodian;
@@ -53,7 +51,7 @@ class DocumentTracker
             'office' => $registeredOffice,
             'person' => $registrant?->name,
             'at' => $registeredAt,
-            'details' => array_filter([$this->heldFor($registeredAt, $received->first()?->acknowledged_at, $ended)]),
+            'details' => array_filter([$this->heldFor($registeredAt, $received->first()?->acknowledged_at)]),
             'remarks' => null,
         ]];
 
@@ -71,7 +69,7 @@ class DocumentTracker
                 $receivedEvent = $this->event('received', 'Received', $receivedOffice, $movement, $movement->acknowledged_at, [
                     $forwarded,
                     'Acknowledged by '.$movement->acknowledgedBy?->name,
-                    $this->heldFor($movement->acknowledged_at, $next?->acknowledged_at, $ended),
+                    $this->heldFor($movement->acknowledged_at, $next?->acknowledged_at),
                 ]);
                 $receivedEvent['person'] = $receivedPerson;
                 $events[] = $receivedEvent;
@@ -93,13 +91,8 @@ class DocumentTracker
             }
         }
 
-        if ($ended) {
-            $endedLog = $document->auditLogs->firstWhere('action', $document->status);
-            $stops[] = $this->stop($document->statusEnum()->label(), $this->currentOffice($document, $received), $endedLog?->actor?->name, $endedLog?->occurred_at);
-        }
-
         return [
-            'stops' => $this->markStates($stops, (bool) $pending, $ended),
+            'stops' => $this->markStates($stops, (bool) $pending),
             'events' => collect($events)
                 ->map(fn (array $event, int $index) => $event + ['order' => $index])
                 ->sortByDesc(fn (array $event) => [$event['at']?->getTimestamp() ?? 0, $event['order']])
@@ -127,13 +120,11 @@ class DocumentTracker
         ];
     }
 
-    private function markStates(array $stops, bool $hasPending, bool $ended): array
+    private function markStates(array $stops, bool $hasPending): array
     {
         $last = array_key_last($stops);
 
-        if ($ended) {
-            $stops[$last]['state'] = 'ended';
-        } elseif ($hasPending) {
+        if ($hasPending) {
             $stops[$last]['state'] = 'pending';
             $stops[$last - 1]['state'] = 'current';
         } else {
@@ -143,9 +134,9 @@ class DocumentTracker
         return $stops;
     }
 
-    private function heldFor(?CarbonInterface $from, ?CarbonInterface $until, bool $ended): ?string
+    private function heldFor(?CarbonInterface $from, ?CarbonInterface $until): ?string
     {
-        if (! $from || ($until === null && $ended)) {
+        if (! $from) {
             return null;
         }
 
@@ -194,10 +185,6 @@ class DocumentTracker
                 'detail' => "{$pending->recipient?->name} has not acknowledged receipt yet. {$custodian} remains responsible for it.",
                 'since' => $pending->forwarded_at,
             ];
-        }
-
-        if (in_array($document->statusEnum(), [DocumentStatus::Completed, DocumentStatus::Cancelled], true)) {
-            return ['headline' => $document->statusEnum()->label(), 'detail' => null, 'since' => null];
         }
 
         return [

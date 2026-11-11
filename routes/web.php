@@ -1,26 +1,25 @@
 <?php
 
 use App\Actions\Fortify\CreateNewUser;
+use App\Http\Controllers\PdtsDocumentAttachmentController;
 use App\Http\Controllers\UtilsController;
 use App\Livewire\Admin\EmailLogIndex;
+use App\Livewire\Notifications\Index;
 use App\Livewire\Pdts\Dashboard;
-use App\Livewire\Pdts\Approvals\Inbox as PdtsApprovalInbox;
 use App\Livewire\Pdts\Documents\Index as PdtsDocumentIndex;
 use App\Livewire\Pdts\Documents\Registration as PdtsDocumentRegistration;
 use App\Livewire\Pdts\Documents\Show as PdtsDocumentShow;
-use App\Livewire\Pdts\Organization\Departments as PdtsDepartments;
+use App\Livewire\Pdts\OcrWorkbench;
 use App\Livewire\Pdts\Organization\Delegations as PdtsDelegations;
+use App\Livewire\Pdts\Organization\Departments as PdtsDepartments;
 use App\Livewire\Pdts\Organization\EmployeeAssignments as PdtsEmployeeAssignments;
 use App\Livewire\Pdts\Organization\Offices as PdtsOffices;
-use App\Livewire\Pdts\OcrWorkbench;
 use App\Livewire\Settings\NotificationPreferences;
 use App\Livewire\Support\AdminChatCenter;
 use App\Livewire\Users\UserCreate;
 use App\Livewire\Users\UserEdit;
 use App\Livewire\Users\UserIndex;
 use App\Livewire\Users\UserShow;
-use App\Livewire\Workflows\WorkflowApprovers;
-use App\Http\Controllers\PdtsDocumentAttachmentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
@@ -56,9 +55,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents/register', PdtsDocumentRegistration::class)
         ->middleware('can:documents.register')
         ->name('pdts.documents.register');
-    Route::get('/approvals', PdtsApprovalInbox::class)
-        ->middleware('can:documents.view')
-        ->name('pdts.approvals.inbox');
     Route::get('/documents', PdtsDocumentIndex::class)
         ->middleware('can:documents.view')
         ->name('pdts.documents.index');
@@ -86,13 +82,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/organization/delegations', PdtsDelegations::class)
         ->middleware('can:delegations.manage')
         ->name('pdts.organization.delegations');
-    Route::get('/notifications', App\Livewire\Notifications\Index::class)->name('notifications.index');
+    Route::get('/notifications', Index::class)->name('notifications.index');
     Route::get('/settings/notifications', NotificationPreferences::class)->name('settings.notifications');
     Route::get('/admin/email-log', EmailLogIndex::class)->name('admin.email_log');
-
-    Route::get('/workflow-approvers', WorkflowApprovers::class)
-        ->middleware('can:workflows.manage')
-        ->name('workflow.approvers');
 
     Route::get('/configurations/roles/index', App\Livewire\Configurations\Roles\Index::class)
         ->middleware('can:settings.manage')
@@ -103,15 +95,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/users/{user}/edit', UserEdit::class)->middleware('can:users.manage')->name('users.edit');
     Route::get('/users/{user}/show', UserShow::class)->middleware('can:users.manage')->name('users.show');
 
-    Route::get('/configurations/workflows/workflow-definitions/index', App\Livewire\Configurations\Workflows\WorkflowDefinition\Index::class)
-        ->middleware('can:workflows.manage')
-        ->name('configurations.workflows.workflow_definitions.index');
-    Route::get('/configurations/workflows/workflow-definitions/{id}/show', App\Livewire\Configurations\Workflows\WorkflowDefinition\Show::class)
-        ->middleware('can:workflows.manage')
-        ->name('configurations.workflows.workflow_definitions.show');
-
     Route::middleware(['auth'])->get('/support-center', AdminChatCenter::class)->name('support.center');
-    });
+});
 
 Route::get('/getManNumbers', [UtilsController::class, 'getManNumbers'])->name('getManNumbers');
 Route::get('/getManNumber', [UtilsController::class, 'getManNumber'])->name('getManNumber');

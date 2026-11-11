@@ -2,20 +2,19 @@
 
 namespace App\Models;
 
-use Database\Factories\UserFactory;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Fortify\TwoFactorAuthenticatable;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
+use Illuminate\Support\Str;
+use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable, SoftDeletes;
+    use HasFactory, HasRoles, Notifiable, SoftDeletes, TwoFactorAuthenticatable;
 
     /**
      * The attributes that are mass assignable.
@@ -72,25 +71,29 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password'          => 'hashed',
-        'dob'               => 'date',
-        'con_wef_date'      => 'date',
-        'con_wet_date'      => 'date',
-        'banned_until'      => 'datetime',
-        'is_banned'         => 'boolean',
-        'notify_email'      => 'boolean',
-        'notify_in_app'     => 'boolean',
+        'password' => 'hashed',
+        'dob' => 'date',
+        'con_wef_date' => 'date',
+        'con_wet_date' => 'date',
+        'banned_until' => 'datetime',
+        'is_banned' => 'boolean',
+        'notify_email' => 'boolean',
+        'notify_in_app' => 'boolean',
         'notify_categories' => 'array',
     ];
 
     /**
      * Should this user receive notifications for the given category over the given channel?
-    * Empty or unknown categories are allowed by default.
+     * Empty or unknown categories are allowed by default.
      */
     public function wantsNotification(string $channel, ?string $category = null): bool
     {
-        if ($channel === 'mail'     && !($this->notify_email  ?? true)) return false;
-        if ($channel === 'database' && !($this->notify_in_app ?? true)) return false;
+        if ($channel === 'mail' && ! ($this->notify_email ?? true)) {
+            return false;
+        }
+        if ($channel === 'database' && ! ($this->notify_in_app ?? true)) {
+            return false;
+        }
 
         if ($category) {
             $cats = $this->notify_categories ?? [];
@@ -98,6 +101,7 @@ class User extends Authenticatable
                 return false;
             }
         }
+
         return true;
     }
 
@@ -112,13 +116,10 @@ class User extends Authenticatable
             ->map(fn ($word) => Str::substr($word, 0, 1))
             ->implode('');
     }
+
     public function getFullnameAttribute()
     {
         return $this->name;
-    }
-    public function workflowApprovals()
-    {
-        return $this->hasMany(WorkflowStepApprover::class);
     }
 
     public function pdtsOfficeAssignments()
@@ -157,7 +158,7 @@ class User extends Authenticatable
 
     public function role()
     {
-        return $this->belongsTo(\App\Models\Role::class);
+        return $this->belongsTo(Role::class);
     }
 
     public function getLastActivityAttribute()
@@ -185,6 +186,4 @@ class User extends Authenticatable
             ? Carbon::createFromTimestamp($lastActivity)
             : null;
     }
-
-
 }

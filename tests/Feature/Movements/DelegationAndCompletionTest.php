@@ -104,36 +104,3 @@ test('unassigned delegate cannot acknowledge for the intended recipient', functi
 
     $this->assertSame($this->sender->id, $this->document->fresh()->current_custodian_id);
 });
-
-test('authorized current custodian can complete a received document with an audit record', function () {
-    $this->document->update([
-        'current_custodian_id' => $this->recipient->id,
-        'status' => DocumentStatus::Received->value,
-    ]);
-
-    $completed = app(CustodyService::class)->complete($this->document, $this->recipient, 'Final review completed.');
-
-    expect($completed->statusEnum())->toBe(DocumentStatus::Completed)
-        ->and($completed->completed_by)->toBe($this->recipient->id)
-        ->and($completed->completed_at)->not->toBeNull()
-        ->and($completed->completion_comments)->toBe('Final review completed.');
-
-    $this->assertDatabaseHas('pdts_document_audit_logs', [
-        'pdts_document_id' => $this->document->id,
-        'actor_id' => $this->recipient->id,
-        'action' => 'completed',
-    ]);
-});
-
-test('completion is blocked while a handover is pending', function () {
-    $this->document->update([
-        'current_custodian_id' => $this->recipient->id,
-        'status' => DocumentStatus::Received->value,
-    ]);
-    app(CustodyService::class)->forward($this->document, $this->recipient, $this->sender);
-
-    expect(fn () => app(CustodyService::class)->complete($this->document, $this->recipient, 'Done'))
-        ->toThrow(CustodyException::class, 'pending handover');
-
-    $this->assertSame($this->recipient->id, $this->document->fresh()->current_custodian_id);
-});

@@ -53,13 +53,6 @@
                                     </button>
                                 @else
                                     <livewire:movements.forward-document :document="$document" :key="'forward-'.$document->id" />
-                                    @if ($document->statusEnum() === \App\Enums\DocumentStatus::Received)
-                                        @can('documents.complete')
-                                            <button type="button" class="btn btn-sm btn-outline-success ml-1" wire:click="openComplete({{ $document->id }})">
-                                                Complete
-                                            </button>
-                                        @endcan
-                                    @endif
                                 @endif
                             </td>
                         </tr>
@@ -96,32 +89,6 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" wire:click="closeCancel">Back</button>
                             <button type="submit" class="btn btn-danger" wire:loading.attr="disabled">Cancel handover</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    @if ($completingDocument)
-        <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" style="background: rgba(0, 0, 0, .5);">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <form wire:submit.prevent="complete">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Complete document</h5>
-                        </div>
-                        <div class="modal-body">
-                            <p class="mb-2"><strong>{{ $completingDocument->reference_number }}</strong>: {{ $completingDocument->title }}</p>
-                            <p class="text-muted">This ends ordinary forwarding. The movement history will remain available.</p>
-                            <label for="completion-comments">Final action and comments</label>
-                            <textarea id="completion-comments" rows="3" maxlength="1000" wire:model="completionComments"
-                                      class="form-control @error('completionComments') is-invalid @enderror" required></textarea>
-                            @error('completionComments') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" wire:click="closeComplete">Back</button>
-                            <button type="submit" class="btn btn-success" wire:loading.attr="disabled">Complete</button>
                         </div>
                     </form>
                 </div>

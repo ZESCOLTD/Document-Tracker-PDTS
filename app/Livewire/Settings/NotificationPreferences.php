@@ -8,33 +8,30 @@ use Livewire\Component;
 class NotificationPreferences extends Component
 {
     public bool $notify_email = true;
+
     public bool $notify_in_app = true;
 
     /** category => bool */
     public array $categories = [
         'documents' => true,
         'handovers' => true,
-        'approvals' => true,
-        'completion' => true,
-        'overdue' => true,
         'system' => true,
     ];
 
     public array $categoryLabels = [
         'documents' => 'Document registration and updates',
         'handovers' => 'Forwarding and receipt acknowledgement',
-        'approvals' => 'Document approval requests and decisions',
-        'completion' => 'Document completion and cancellation',
-        'overdue' => 'Overdue handover reminders',
         'system' => 'System announcements',
     ];
 
     public function mount(): void
     {
         $u = Auth::user();
-        if (!$u) return;
+        if (! $u) {
+            return;
+        }
 
-        $this->notify_email  = (bool) ($u->notify_email  ?? true);
+        $this->notify_email = (bool) ($u->notify_email ?? true);
         $this->notify_in_app = (bool) ($u->notify_in_app ?? true);
 
         $stored = $u->notify_categories ?? [];
@@ -48,11 +45,13 @@ class NotificationPreferences extends Component
     public function save(): void
     {
         $u = Auth::user();
-        if (!$u) return;
+        if (! $u) {
+            return;
+        }
 
         $u->forceFill([
-            'notify_email'      => $this->notify_email,
-            'notify_in_app'     => $this->notify_in_app,
+            'notify_email' => $this->notify_email,
+            'notify_in_app' => $this->notify_in_app,
             'notify_categories' => $this->categories,
         ])->save();
 

@@ -307,13 +307,6 @@ describe('my custody', function () {
             ->assertDontSee('History')
             ->assertDontSeeHtml('href="'.route('movements.history', $this->document).'"');
     });
-
-    test('leaves out completed documents', function () {
-        $this->document->update(['status' => DocumentStatus::Completed->value]);
-
-        Livewire::actingAs($this->sender)->test(Custody::class)
-            ->assertDontSee('PDTS-2026-0001');
-    });
 });
 
 describe('cancelling from my custody', function () {

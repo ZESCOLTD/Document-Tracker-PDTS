@@ -38,13 +38,6 @@
                             </a>
                         </li>
                     @endcan
-                    @can('documents.view')
-                        <li class="nav-item">
-                            <a href="{{ route('pdts.approvals.inbox') }}" class="nav-link {{ request()->routeIs('pdts.approvals.*') ? 'active' : '' }}">
-                                <i class="nav-icon fas fa-stamp"></i><p>Approval Inbox</p>
-                            </a>
-                        </li>
-                    @endcan
                 @endcanany
 
                 @include('layouts.partials.movements-sidebar')
@@ -89,7 +82,7 @@
                     </li>
                 @endcan
 
-                @canany(['users.view', 'workflow.view', 'configuration.view'])
+                @canany(['users.view', 'configuration.view'])
                     <li class="nav-header text-uppercase" style="color: {{ config('theme.color_accent') }}">SETTINGS</li>
                 @endcanany
 
@@ -97,14 +90,6 @@
                     <li class="nav-item">
                         <a href="{{ route('users.index') }}" class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-users-cog"></i><p>User Management</p>
-                        </a>
-                    </li>
-                @endcan
-
-                @can('workflow.view')
-                    <li class="nav-item">
-                        <a href="{{ route('workflow.approvers') }}" class="nav-link {{ request()->routeIs('workflow.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-project-diagram"></i><p>Workflow Setup</p>
                         </a>
                     </li>
                 @endcan
@@ -143,7 +128,7 @@
                     </li>
                 @endauth
 
-                @canany(['configuration.view', 'configuration.manage', 'configuration_workflow_definitions.view'])
+                @canany(['configuration.view', 'configuration.manage'])
                     <li class="nav-item {{ request()->routeIs('configurations.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('configurations.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-cogs"></i>
@@ -157,11 +142,6 @@
                                     </a>
                                 </li>
                             @endcan
-                            <li class="nav-item">
-                                <a href="{{ route('configurations.workflows.workflow_definitions.index') }}" class="nav-link {{ request()->routeIs('configurations.workflows.workflow_definitions.*') ? 'active' : '' }}">
-                                    <i class="far fa-dot-circle nav-icon"></i><p>Workflow Definitions</p>
-                                </a>
-                            </li>
                         </ul>
                     </li>
                 @endcan

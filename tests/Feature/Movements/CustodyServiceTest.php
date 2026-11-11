@@ -71,13 +71,6 @@ describe('forward', function () {
         $this->custody->forward($stale, $this->sender, custodyUser('Manager'));
     })->throws(CustodyException::class, 'already has a handover');
 
-    test('is rejected for completed and cancelled documents', function (DocumentStatus $status) {
-        $this->document->update(['status' => $status]);
-
-        $this->custody->forward($this->document, $this->sender, $this->recipient);
-    })->with([DocumentStatus::Completed, DocumentStatus::Cancelled])
-        ->throws(CustodyException::class, 'cannot be forwarded');
-
     test('is rejected when forwarding to yourself', function () {
         $this->custody->forward($this->document, $this->sender, $this->sender);
     })->throws(CustodyException::class, 'cannot receive documents');
@@ -383,8 +376,8 @@ describe('notifications', function () {
         Notification::assertSentTo($this->recipient, DocumentHandoverNotification::class, fn ($n) => $n->event === 'cancelled');
     });
 
-    test('they appear in the system only, not by email', function () {
-        $this->custody->forward($this->document, $this->sender, $this->recipient);
+    test('forwarding and acknowledgement are also emailed, other events are not', function () {
+        $movement = $this->custody->forward($this->document, $this->sender, $this->recipient);
 
         $notification = $this->recipient->notifications()->first();
 
@@ -392,8 +385,15 @@ describe('notifications', function () {
             ->and($notification->data['url'])->toBe(route('movements.pending'))
             ->and($notification->data['message'])->toContain($this->document->reference_number);
 
-        expect((new DocumentHandoverNotification($this->document->movements()->first(), 'forwarded'))->via($this->recipient))
-            ->toBe(['database']);
+        $forwarded = new DocumentHandoverNotification($movement, 'forwarded');
+
+        expect($forwarded->via($this->recipient))->toBe(['database', 'mail'])
+            ->and((new DocumentHandoverNotification($movement, 'declined'))->via($this->recipient))->toBe(['database']);
+
+        $mail = $forwarded->toMail($this->recipient);
+
+        expect($mail->subject)->toBe('PDTS | Document awaiting your receipt: '.$this->document->reference_number)
+            ->and($mail->actionUrl)->toBe(route('movements.pending'));
     });
 
     test('a user who muted handovers gets none, but the handover still exists', function () {
@@ -466,7 +466,5 @@ test('statuses have plain-English labels for the tracking pages', function () {
         'Not sent',
         'Sent, not received yet',
         'Received',
-        'Completed',
-        'Cancelled',
     ]);
 });

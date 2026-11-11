@@ -4,11 +4,13 @@ namespace App\Notifications;
 
 use App\Models\DocumentMovement;
 use App\Notifications\Concerns\RespectsUserPreferences;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
 /**
- * In-system notice about a handover. Email is planned for Phase 7.
+ * Notice about a custody handover. Every event is stored in the system. Forwarding
+ * (sent to the recipient) and acknowledgement (sent to the sender) are also emailed.
  */
 class DocumentHandoverNotification extends Notification
 {
@@ -29,10 +31,23 @@ class DocumentHandoverNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return $this->preferredChannels($notifiable, ['database'], 'handovers');
+        $defaults = in_array($this->event, [self::FORWARDED, self::ACKNOWLEDGED], true)
+            ? ['database', 'mail']
+            : ['database'];
+
+        $channels = $this->preferredChannels($notifiable, $defaults, 'handovers');
+
+        if (filter_var($notifiable->email ?? null, FILTER_VALIDATE_EMAIL) === false) {
+            $channels = array_values(array_diff($channels, ['mail']));
+        }
+
+        return $channels;
     }
 
-    public function toArray(object $notifiable): array
+    /**
+     * @return array{title: string, message: string, url: string, icon: string}
+     */
+    private function content(): array
     {
         $document = $this->movement->document;
         $reference = $document->reference_number;
@@ -74,9 +89,34 @@ class DocumentHandoverNotification extends Notification
 
         return [
             'title' => $title,
-            'message' => Str::limit($message, 160),
+            'message' => $message,
             'url' => $url,
             'icon' => $icon,
         ];
+    }
+
+    public function toArray(object $notifiable): array
+    {
+        $content = $this->content();
+
+        return [
+            'title' => $content['title'],
+            'message' => Str::limit($content['message'], 160),
+            'url' => $content['url'],
+            'icon' => $content['icon'],
+        ];
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $content = $this->content();
+        $reference = $this->movement->document->reference_number;
+
+        return (new MailMessage)
+            ->subject("PDTS | {$content['title']}: {$reference}")
+            ->greeting('Hello '.($notifiable->name ?? 'there').',')
+            ->line($content['message'])
+            ->action($this->event === self::FORWARDED ? 'Review handover' : 'View movement history', $content['url'])
+            ->line('You can change how you receive notifications under Settings → Notification Preferences.');
     }
 }

@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DocumentStatus;
 use App\Livewire\Movements\History;
 use App\Livewire\Movements\Track;
 use App\Models\PdtsDepartment;
@@ -91,16 +90,6 @@ describe('stops', function () {
         expect($track['stops'])->toHaveCount(1)
             ->and($track['headline'])->toBe('With Accounts')
             ->and(array_column($track['events'], 'type'))->toContain('declined', 'cancelled');
-    });
-
-    test('a completed document ends with a final stop', function () {
-        $this->document->update(['status' => DocumentStatus::Completed->value]);
-
-        $track = tracked($this->document);
-
-        expect(end($track['stops'])['state'])->toBe('ended')
-            ->and(end($track['stops'])['label'])->toBe('Completed')
-            ->and($track['headline'])->toBe('Completed');
     });
 
     test('it does not invent future stops', function () {
@@ -248,24 +237,11 @@ describe('track my documents', function () {
             ->assertSee('Not received within 3 days');
     });
 
-    test('tabs split in-progress and completed documents', function () {
-        $done = PdtsDocument::factory()->create([
-            'current_custodian_id' => $this->employee->id,
-            'reference_number' => 'PDTS-2026-0200',
-            'status' => DocumentStatus::Completed->value,
-        ]);
-        $done->auditLogs()->create(['actor_id' => $this->employee->id, 'action' => 'registered', 'occurred_at' => now()]);
-
+    test('tabs show all and in-progress documents only', function () {
         Livewire::actingAs($this->employee)->test(Track::class)
-            ->assertSeeHtml('data-tab-count="all">2<')
+            ->assertSeeHtml('data-tab-count="all">1<')
             ->assertSeeHtml('data-tab-count="in-progress">1<')
-            ->assertSeeHtml('data-tab-count="completed">1<')
-            ->call('setTab', 'completed')
-            ->assertSee('PDTS-2026-0200')
-            ->assertDontSee('PDTS-2026-0100')
-            ->call('setTab', 'in-progress')
             ->assertSee('PDTS-2026-0100')
-            ->assertDontSee('PDTS-2026-0200')
             ->call('setTab', 'nonsense')
             ->assertSet('tab', 'all');
     });

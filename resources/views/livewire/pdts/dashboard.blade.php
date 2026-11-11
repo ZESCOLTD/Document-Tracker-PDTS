@@ -3,8 +3,6 @@
         'registered' => '#9aa5b1',
         'awaiting_receipt' => '#e8890c',
         'received' => '#2f6fdf',
-        'completed' => '#0f9d8a',
-        'cancelled' => '#d64545',
     ];
 
     $tiles = [

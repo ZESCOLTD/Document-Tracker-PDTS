@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\DocumentHandoverNotification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Throwable;
@@ -166,50 +167,6 @@ class CustodyService
         return $movement;
     }
 
-    public function complete(PdtsDocument $document, User $user, string $comments): PdtsDocument
-    {
-        $comments = $this->cleanReason($comments);
-
-        return DB::transaction(function () use ($document, $user, $comments): PdtsDocument {
-            $locked = $this->lockDocument($document->getKey());
-
-            if (! $user->can('documents.complete')) {
-                throw new CustodyException('You do not have permission to complete documents.');
-            }
-
-            if ((int) $locked->current_custodian_id !== (int) $user->getKey()) {
-                throw new CustodyException('Only the current custodian can complete this document.');
-            }
-
-            if ($locked->pendingMovement()->exists()) {
-                throw new CustodyException('Cancel or resolve the pending handover before completing this document.');
-            }
-
-            if ($locked->statusEnum() !== DocumentStatus::Received) {
-                throw new CustodyException('A document must be acknowledged before it can be completed.');
-            }
-
-            $locked->update([
-                'status' => DocumentStatus::Completed->value,
-                'completed_by' => $user->getKey(),
-                'completed_at' => now(),
-                'completion_comments' => $comments,
-            ]);
-
-            $locked->auditLogs()->create([
-                'actor_id' => $user->getKey(),
-                'occurred_at' => now(),
-                'action' => 'completed',
-                'details' => [
-                    'completed_by' => $user->getKey(),
-                    'completion_comments' => $comments,
-                ],
-            ]);
-
-            return $locked->fresh(['documentType', 'currentCustodian', 'completedBy']);
-        }, attempts: 3);
-    }
-
     /**
      * Why this user cannot forward this document right now, or null if they can.
      */
@@ -321,9 +278,9 @@ class CustodyService
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, User>
+     * @return Collection<int, User>
      */
-    private function activeDelegates(User $principal): \Illuminate\Support\Collection
+    private function activeDelegates(User $principal): Collection
     {
         return User::permission('documents.acknowledge')
             ->whereIn('id', PdtsUserDelegation::query()

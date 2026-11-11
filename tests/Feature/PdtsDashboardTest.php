@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DocumentStatus;
 use App\Livewire\Pdts\Dashboard;
 use App\Models\PdtsDocument;
 use App\Models\User;
@@ -43,7 +42,6 @@ test('shows what is waiting for the recipient, oldest first, with overdue marked
 test('shows the sender what they hold and what has not been received yet', function () {
     dashboardDocument($this->sender);
     $sent = dashboardDocument($this->sender, ['reference_number' => 'OMTS-2026-0003']);
-    dashboardDocument($this->sender, ['status' => DocumentStatus::Completed->value]);
     $this->custody->forward($sent, $this->sender, $this->recipient);
 
     Livewire::actingAs($this->sender)
@@ -52,7 +50,7 @@ test('shows the sender what they hold and what has not been received yet', funct
             && $mine['sentCount'] === 1
             && $mine['sentOverdue'] === 0
             && $mine['registeredOpen'] === 2
-            && $mine['registeredTotal'] === 3
+            && $mine['registeredTotal'] === 2
             && $mine['waitingCount'] === 0)
         ->assertSee('Nothing is waiting for you to acknowledge.')
         ->assertSee('OMTS-2026-0003');
@@ -83,7 +81,6 @@ test('management sees organisation totals and overdue handovers', function () {
 
     $stuck = dashboardDocument($this->sender, ['reference_number' => 'OMTS-2026-0009']);
     $declined = dashboardDocument($this->sender);
-    dashboardDocument($this->sender, ['status' => DocumentStatus::Completed->value]);
 
     $this->travelTo(now()->subDays(4));
     $this->custody->forward($stuck, $this->sender, $this->recipient);
@@ -95,11 +92,10 @@ test('management sees organisation totals and overdue handovers', function () {
         ->assertViewHas('organisation', function (array $org) {
             $byStatus = $org['byStatus']->mapWithKeys(fn ($row) => [$row['status']->value => $row['total']]);
 
-            return $org['total'] === 3
+            return $org['total'] === 2
                 && $org['open'] === 2
                 && $byStatus['awaiting_receipt'] === 1
                 && $byStatus['registered'] === 1
-                && $byStatus['completed'] === 1
                 && $org['declined30'] === 1
                 && $org['overdueCount'] === 1
                 && $org['overdueList']->first()->document->reference_number === 'OMTS-2026-0009';

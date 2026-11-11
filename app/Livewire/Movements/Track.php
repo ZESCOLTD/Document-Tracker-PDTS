@@ -23,7 +23,6 @@ class Track extends Component
     public const TABS = [
         'all' => 'All',
         'in-progress' => 'In progress',
-        'completed' => 'Completed',
     ];
 
     protected $paginationTheme = 'bootstrap';
@@ -82,7 +81,6 @@ class Track extends Component
                 DocumentStatus::AwaitingReceipt->value,
                 DocumentStatus::Received->value,
             ]),
-            'completed' => $query->where('status', DocumentStatus::Completed->value),
             default => $query,
         };
     }
