@@ -82,6 +82,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/organization/delegations', PdtsDelegations::class)
         ->middleware('can:delegations.manage')
         ->name('pdts.organization.delegations');
+    Route::get('/organization/document-types', \App\Livewire\Pdts\Organization\DocumentTypes::class)
+        ->middleware('can:document_types.manage')
+        ->name('pdts.organization.document-types');
     Route::get('/notifications', Index::class)->name('notifications.index');
     Route::get('/settings/notifications', NotificationPreferences::class)->name('settings.notifications');
     Route::get('/admin/email-log', EmailLogIndex::class)->name('admin.email_log');

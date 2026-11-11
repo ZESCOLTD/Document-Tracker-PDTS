@@ -20,6 +20,9 @@ class Departments extends Component
     public string $parentDepartmentId = '';
     public bool $isActive = true;
 
+    // The add/edit form is shown in a pop-up.
+    public bool $showForm = false;
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -35,8 +38,16 @@ class Departments extends Component
         ];
     }
 
+    public function openCreate(): void
+    {
+        $this->cancelEdit();
+        $this->showForm = true;
+    }
+
     public function edit(int $id): void
     {
+        $this->resetValidation();
+        $this->showForm = true;
         $department = PdtsDepartment::findOrFail($id);
         $this->editingId = $department->id;
         $this->code = $department->code ?? '';
@@ -47,6 +58,7 @@ class Departments extends Component
 
     public function cancelEdit(): void
     {
+        $this->showForm = false;
         $this->reset(['editingId', 'code', 'name', 'parentDepartmentId']);
         $this->isActive = true;
         $this->resetValidation();

@@ -97,23 +97,26 @@
             color: #fff !important;
         }
 
-        /* Document Tracking menu: no accent colour */
-        .doc-tracking-menu .nav-icon {
-            color: #fff !important;
+        /* Table headers everywhere use the sidebar colour. Overrides .thead-light, .table-light and inline backgrounds. */
+        .table > thead > tr > th,
+        .table > thead > tr > td {
+            background-color: {{ config('theme.color_primary') }} !important;
+            color: {{ config('theme.color_primary_text_light') }} !important;
+            border-color: {{ config('theme.color_primary') }} !important;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+        .table > thead > tr > th a,
+        .table > thead > tr > th .text-muted,
+        .table > thead > tr > th small {
+            color: {{ config('theme.color_primary_text_light') }} !important;
         }
 
-        .doc-tracking-menu > .nav-link {
-            background-color: transparent !important;
-            box-shadow: none !important;
+        /* Row "Actions" dropdowns: let the menu spill out of the table on tablets and up. */
+        @media (min-width: 768px) {
+            .table-responsive.actions-overflow { overflow: visible; }
         }
 
-        .doc-tracking-menu > .nav-link:hover {
-            background-color: rgba(255, 255, 255, .1) !important;
-        }
-
-        .doc-tracking-menu .nav-treeview .nav-link.active {
-            background-color: rgba(255, 255, 255, .15) !important;
-        }
         .nav-link p {
             color: #fff !important;
         }

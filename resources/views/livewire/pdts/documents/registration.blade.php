@@ -24,10 +24,33 @@
                 </div>
             </div>
 
+            @php
+                $missing = array_filter([
+                    'document types' => $documentTypes->isEmpty() ? ($canManage['types'] ? route('pdts.organization.document-types') : true) : null,
+                    'departments' => $departments->isEmpty() ? ($canManage['departments'] ? route('pdts.organization.departments') : true) : null,
+                ]);
+            @endphp
+            @if ($missing)
+                <div class="alert alert-warning" data-setup-missing>
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    Documents can't be registered until there are active
+                    @foreach ($missing as $what => $link)
+                        @if (is_string($link))
+                            <a href="{{ $link }}" class="alert-link">{{ $what }}</a>
+                        @else
+                            {{ $what }}
+                        @endif
+                        @unless ($loop->last) and @endunless
+                    @endforeach
+                    in Configurations.
+                    @if (in_array(true, $missing, true)) Ask an administrator to add them. @endif
+                </div>
+            @endif
+
             <div class="form-row">
                 <div class="form-group col-md-4">
                     <label for="document-type">Document type</label>
-                    <select id="document-type" class="form-control" wire:model="document_type_id" required>
+                    <select id="document-type" class="form-control @error('document_type_id') is-invalid @enderror" wire:model="document_type_id" required>
                         <option value="">Select a type</option>
                         @foreach($documentTypes as $documentType)
                             <option value="{{ $documentType->id }}">{{ $documentType->name }}</option>
@@ -37,13 +60,33 @@
                 </div>
                 <div class="form-group col-md-4">
                     <label for="originating-department">Originating department</label>
-                    <input id="originating-department" type="text" class="form-control" wire:model="originating_department" maxlength="191" required>
-                    @error('originating_department') <div class="text-danger mt-1">{{ $message }}</div> @enderror
+                    <select id="originating-department" class="form-control @error('department_id') is-invalid @enderror" wire:model.live="department_id" required @disabled($departments->isEmpty())>
+                        <option value="">Select a department</option>
+                        @foreach($departments as $department)
+                            <option value="{{ $department->id }}">{{ $department->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('department_id') <div class="text-danger mt-1">{{ $message }}</div> @enderror
                 </div>
                 <div class="form-group col-md-4">
                     <label for="originating-office">Originating office</label>
-                    <input id="originating-office" type="text" class="form-control" wire:model="originating_office" maxlength="191" required>
-                    @error('originating_office') <div class="text-danger mt-1">{{ $message }}</div> @enderror
+                    <select id="originating-office" class="form-control @error('office_id') is-invalid @enderror" wire:model="office_id" required @disabled($department_id === '' || $offices->isEmpty())>
+                        <option value="">{{ $department_id === '' ? 'Choose a department first' : ($offices->isEmpty() ? 'No active offices' : 'Select an office') }}</option>
+                        @foreach($offices as $office)
+                            <option value="{{ $office->id }}">{{ $office->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('office_id') <div class="text-danger mt-1">{{ $message }}</div> @enderror
+                    @if ($department_id !== '' && $offices->isEmpty())
+                        <small class="form-text text-muted">
+                            This department has no active offices.
+                            @if ($canManage['offices'])
+                                <a href="{{ route('pdts.organization.offices') }}">Add one in Configurations.</a>
+                            @else
+                                Ask an administrator to add one.
+                            @endif
+                        </small>
+                    @endif
                 </div>
             </div>
 

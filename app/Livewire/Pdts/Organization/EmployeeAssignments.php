@@ -24,6 +24,9 @@ class EmployeeAssignments extends Component
     public bool $isPrimary = true;
     public bool $showHistory = false;
 
+    // The assign form is shown in a pop-up.
+    public bool $showForm = false;
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -38,6 +41,26 @@ class EmployeeAssignments extends Component
             'startsAt' => ['required', 'date'],
             'isPrimary' => ['boolean'],
         ];
+    }
+
+    public function openCreate(): void
+    {
+        $this->resetForm();
+        $this->showForm = true;
+    }
+
+    public function cancelEdit(): void
+    {
+        $this->resetForm();
+        $this->showForm = false;
+    }
+
+    private function resetForm(): void
+    {
+        $this->reset(['userId', 'officeId', 'position']);
+        $this->startsAt = now()->format('Y-m-d\TH:i');
+        $this->isPrimary = true;
+        $this->resetValidation();
     }
 
     public function assign(): void
@@ -70,9 +93,7 @@ class EmployeeAssignments extends Component
         });
 
         session()->flash('success', 'Employee office assignment created.');
-        $this->reset(['userId', 'officeId', 'position']);
-        $this->startsAt = now()->format('Y-m-d\TH:i');
-        $this->isPrimary = true;
+        $this->cancelEdit();
     }
 
     public function endAssignment(int $id): void

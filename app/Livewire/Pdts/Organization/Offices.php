@@ -22,6 +22,9 @@ class Offices extends Component
     public string $parentOfficeId = '';
     public bool $isActive = true;
 
+    // The add/edit form is shown in a pop-up.
+    public bool $showForm = false;
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -43,8 +46,16 @@ class Offices extends Component
         ];
     }
 
+    public function openCreate(): void
+    {
+        $this->cancelEdit();
+        $this->showForm = true;
+    }
+
     public function edit(int $id): void
     {
+        $this->resetValidation();
+        $this->showForm = true;
         $office = PdtsOffice::findOrFail($id);
         $this->editingId = $office->id;
         $this->code = $office->code ?? '';
@@ -56,6 +67,7 @@ class Offices extends Component
 
     public function cancelEdit(): void
     {
+        $this->showForm = false;
         $this->reset(['editingId', 'code', 'name', 'departmentId', 'parentOfficeId']);
         $this->isActive = true;
         $this->resetValidation();

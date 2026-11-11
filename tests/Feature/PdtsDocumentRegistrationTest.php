@@ -1,8 +1,10 @@
 <?php
 
 use App\Livewire\Pdts\Documents\Registration;
+use App\Models\PdtsDepartment;
 use App\Models\PdtsDocument;
 use App\Models\PdtsDocumentType;
+use App\Models\PdtsOffice;
 use App\Models\User;
 use App\Services\Pdts\PdtsReferenceNumberGenerator;
 use Illuminate\Http\UploadedFile;
@@ -33,6 +35,9 @@ beforeEach(function () {
         'name' => 'Memorandum',
         'is_active' => true,
     ]);
+
+    $this->department = PdtsDepartment::create(['name' => 'Operations', 'is_active' => true]);
+    $this->office = PdtsOffice::create(['name' => 'Lusaka Main Office', 'department_id' => $this->department->id, 'is_active' => true]);
 });
 
 test('reference numbers increment within the configured year and prefix', function () {
@@ -54,8 +59,8 @@ test('authorized employee can register a document with a unique reference and pr
         ->set('subject', 'Inspection results')
         ->set('description', 'Results from the northern area inspection.')
         ->set('document_type_id', (string) $this->documentType->id)
-        ->set('originating_department', 'Operations')
-        ->set('originating_office', 'Lusaka Main Office')
+        ->set('department_id', (string) $this->department->id)
+        ->set('office_id', (string) $this->office->id)
         ->set('attachment', $file)
         ->call('save')
         ->assertHasNoErrors();
@@ -66,7 +71,9 @@ test('authorized employee can register a document with a unique reference and pr
         ->and($document->status)->toBe('registered')
         ->and($document->registered_by)->toBe($this->registrar->id)
         ->and($document->current_custodian_id)->toBe($this->registrar->id)
-        ->and($document->attachments)->toHaveCount(1);
+        ->and($document->attachments)->toHaveCount(1)
+        ->and($document->originating_department)->toBe('Operations')
+        ->and($document->originating_office)->toBe('Lusaka Main Office');
 
     Storage::disk('private')->assertExists($document->attachments->sole()->storage_path);
 
