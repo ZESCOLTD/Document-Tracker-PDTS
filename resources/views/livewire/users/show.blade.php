@@ -40,7 +40,7 @@
             </div>
 
             <div>
-                <h4 class="mb-0" style="color: {{ config('theme.color_primary') }}">
+                <h4 class="mb-0" style="color: {{ config('theme.color_sidebar') }}">
                     {{ $user->name }}
                 </h4>
                 <small class="text-muted">
@@ -118,7 +118,7 @@
         {{-- TABS --}}
         <div class="card-header p-0 border-0">
             <ul class="nav nav-tabs"
-                style="background: {{ config('theme.color_primary') }};">
+                style="background: {{ config('theme.color_sidebar') }};">
 
                 <li class="nav-item">
                     <a class="nav-link active text-white"

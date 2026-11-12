@@ -97,12 +97,17 @@
             color: #fff !important;
         }
 
+        .main-sidebar .nav-link p,
+        .main-sidebar .nav-header {
+            color: #fff !important;
+        }
+
         /* Table headers everywhere use the sidebar colour. Overrides .thead-light, .table-light and inline backgrounds. */
         .table > thead > tr > th,
         .table > thead > tr > td {
-            background-color: {{ config('theme.color_primary') }} !important;
+            background-color: {{ config('theme.color_sidebar') }} !important;
             color: {{ config('theme.color_primary_text_light') }} !important;
-            border-color: {{ config('theme.color_primary') }} !important;
+            border-color: {{ config('theme.color_sidebar') }} !important;
             font-weight: 600;
             vertical-align: middle;
         }
@@ -148,7 +153,7 @@
             background: #ffc107;
         }
         .bg-primary{
-            background-color: {{config('theme.color_primary')}} !important;
+            background-color: {{config('theme.color_sidebar')}} !important;
         }
         .bg-warning{
             background-color: {{config('theme.color_accent')}} !important;
@@ -157,11 +162,28 @@
             color: {{config('theme.color_accent')}} !important;
         }
         .text-primary{
-            color: {{config('theme.color_primary')}} !important;
+            color: {{config('theme.color_sidebar')}} !important;
         }
         .btn-primary{
             background: {{config('theme.color_accent')}} !important;
             outline: {{config('theme.color_accent')}} !important;
+        }
+        .btn-outline-secondary:hover,
+        .btn-outline-secondary:active,
+        .btn-outline-secondary.active,
+        .show > .btn-outline-secondary.dropdown-toggle {
+            background-color: {{ config('theme.color_sidebar') }} !important;
+            border-color: {{ config('theme.color_sidebar') }} !important;
+            color: #fff !important;
+            box-shadow: none !important;
+        }
+        .btn-outline-secondary:focus {
+            box-shadow: none !important;
+            outline: none;
+        }
+        .btn-outline-secondary:focus-visible {
+            outline: 2px solid {{ config('theme.color_sidebar') }};
+            outline-offset: 2px;
         }
         .text-white{
              color: white !important;
@@ -261,7 +283,7 @@
        flex-direction: column;">
 
     <!-- HEADER -->
-    <div style="background: {{ config('theme.color_primary') }};
+    <div style="background: {{ config('theme.color_sidebar') }};
                 color: white;
                 padding: 10px;
                 font-weight: bold;

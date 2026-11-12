@@ -4,7 +4,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
 
         <div>
-            <h4 class="mb-1" style="color: {{ config('theme.color_primary') }}">
+            <h4 class="mb-1" style="color: {{ config('theme.color_sidebar') }}">
                 Edit User
             </h4>
             <small class="text-muted">{{ $user->name }}</small>
@@ -65,7 +65,7 @@
         {{-- TABS --}}
         <div class="card-header p-0 border-0">
             <ul class="nav nav-tabs" id="userTabs" role="tablist"
-                style="background: {{ config('theme.color_primary') }};">
+                style="background: {{ config('theme.color_sidebar') }};">
 
                 <li class="nav-item">
                     <a class="nav-link active text-white"

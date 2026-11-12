@@ -32,6 +32,7 @@ return [
     'color_primary' => '#253745',
     'color_primary_text_dark' => '#253745',
     'color_primary_text_light' => '#ffffff',
+    'color_sidebar' => '#075B35',
     'color_secondary' => '',
     'color_white' => '#ffffff',
     'color_accent' => '#f59d33',
