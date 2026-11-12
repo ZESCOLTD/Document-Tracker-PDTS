@@ -2,9 +2,10 @@
     <div class="d-flex flex-wrap justify-content-between align-items-start mb-4">
         <div>
             <h1 class="h3 mb-1">Department Management</h1>
-            <p class="text-muted mb-0">Maintain the organisational department hierarchy.</p>
+            <p class="text-muted mb-0">Each department sits under a directorate and holds its offices.</p>
         </div>
         <div class="btn-group" role="group" aria-label="Organizational management sections">
+            <a href="{{ route('pdts.organization.directorates') }}" class="btn btn-outline-secondary">Directorates</a>
             <a href="{{ route('pdts.organization.departments') }}" class="btn btn-primary">Departments</a>
             <a href="{{ route('pdts.organization.offices') }}" class="btn btn-outline-secondary">Offices</a>
             <a href="{{ route('pdts.organization.assignments') }}" class="btn btn-outline-secondary">Employee Assignments</a>
@@ -18,19 +19,25 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h5 mb-0">Departments</h2>
             <button type="button" class="btn btn-primary btn-sm ml-auto mr-2" wire:click="openCreate"><i class="fas fa-plus mr-1"></i>Add department</button>
-            <input type="search" class="form-control" style="max-width: 320px" placeholder="Search departments" wire:model.live.debounce.300ms="search">
+            <input type="search" class="form-control" style="max-width: 320px" placeholder="Search departments or directorates" wire:model.live.debounce.300ms="search">
         </div>
         <div class="table-responsive actions-overflow">
             <table class="table table-hover mb-0">
                 <thead>
-                    <tr><th>Code</th><th>Name</th><th>Parent</th><th>Offices</th><th>Status</th><th class="text-right">Actions</th></tr>
+                    <tr><th>Code</th><th>Name</th><th>Directorate</th><th>Offices</th><th>Status</th><th class="text-right">Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($departments as $department)
                         <tr>
                             <td>{{ $department->code ?: '—' }}</td>
                             <td>{{ $department->name }}</td>
-                            <td>{{ $department->parent?->name ?: '—' }}</td>
+                            <td>
+                                @if ($department->directorate)
+                                    {{ $department->directorate->name }}
+                                @else
+                                    <span class="text-warning">Not set</span>
+                                @endif
+                            </td>
                             <td>{{ $department->offices_count }}</td>
                             <td><span class="badge {{ $department->is_active ? 'badge-success' : 'badge-secondary' }}">{{ $department->is_active ? 'Active' : 'Inactive' }}</span></td>
                             <td class="text-right">
@@ -62,14 +69,22 @@
                         @error('name') <small class="text-danger">{{ $message }}</small> @enderror
                     </div>
                     <div class="form-group col-md-6">
-                        <label for="department-parent">Parent department</label>
-                        <select id="department-parent" class="form-control" wire:model="parentDepartmentId">
-                            <option value="">None</option>
-                            @foreach($parentOptions as $parent)
-                                <option value="{{ $parent->id }}">{{ $parent->name }}</option>
+                        <label for="department-directorate">Directorate</label>
+                        <select id="department-directorate" class="form-control" wire:model="directorateId" required>
+                            <option value="">Select a directorate</option>
+                            @foreach($directorates as $directorate)
+                                <option value="{{ $directorate->id }}">{{ $directorate->name }}</option>
                             @endforeach
                         </select>
-                        @error('parentDepartmentId') <small class="text-danger">{{ $message }}</small> @enderror
+                        @error('directorateId') <small class="text-danger">{{ $message }}</small> @enderror
+                        @if ($directorates->isEmpty())
+                            <small class="form-text text-muted">
+                                No active directorates.
+                                @can('directorates.manage')
+                                    <a href="{{ route('pdts.organization.directorates') }}">Add one first.</a>
+                                @endcan
+                            </small>
+                        @endif
                     </div>
                     <div class="form-group col-md-6 d-flex align-items-end">
                         <div class="custom-control custom-switch mb-2">

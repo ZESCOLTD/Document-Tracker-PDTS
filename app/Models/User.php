@@ -131,7 +131,7 @@ class User extends Authenticatable
     {
         return $this->pdtsOfficeAssignments()
             ->whereNull('ends_at')
-            ->with('office.department');
+            ->with(['office.department.directorate', 'office.directorate']);
     }
 
     /**

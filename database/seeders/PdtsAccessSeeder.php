@@ -28,6 +28,7 @@ class PdtsAccessSeeder extends Seeder
             'audit.view',
             'users.view',
             'users.manage',
+            'directorates.manage',
             'departments.manage',
             'offices.manage',
             'employee_assignments.manage',

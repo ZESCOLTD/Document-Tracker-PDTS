@@ -15,7 +15,7 @@ class RegisterPdtsDocument
     public function __construct(private readonly PdtsReferenceNumberGenerator $references) {}
 
     /**
-     * @param array{title: string, subject: string, description?: ?string, document_type_id: int, originating_department: string, originating_office: string} $data
+     * @param array{title: string, subject: string, description?: ?string, document_type_id: int, originating_directorate?: ?string, originating_department?: ?string, originating_office: string} $data
      */
     public function handle(array $data, User $registrar, UploadedFile $file): PdtsDocument
     {
@@ -33,7 +33,8 @@ class RegisterPdtsDocument
                     'subject' => $data['subject'],
                     'description' => $data['description'] ?? null,
                     'document_type_id' => $data['document_type_id'],
-                    'originating_department' => $data['originating_department'],
+                    'originating_directorate' => $data['originating_directorate'] ?? null,
+                    'originating_department' => $data['originating_department'] ?? null,
                     'originating_office' => $data['originating_office'],
                     'registered_by' => $registrar->id,
                     'current_custodian_id' => $registrar->id,

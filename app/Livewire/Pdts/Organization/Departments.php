@@ -3,6 +3,7 @@
 namespace App\Livewire\Pdts\Organization;
 
 use App\Models\PdtsDepartment;
+use App\Models\PdtsDirectorate;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -17,7 +18,7 @@ class Departments extends Component
     public ?int $editingId = null;
     public string $code = '';
     public string $name = '';
-    public string $parentDepartmentId = '';
+    public string $directorateId = '';
     public bool $isActive = true;
 
     // The add/edit form is shown in a pop-up.
@@ -33,8 +34,16 @@ class Departments extends Component
         return [
             'code' => ['nullable', 'string', 'max:64', Rule::unique('pdts_departments', 'code')->ignore($this->editingId)],
             'name' => ['required', 'string', 'max:191', Rule::unique('pdts_departments', 'name')->ignore($this->editingId)],
-            'parentDepartmentId' => ['nullable', 'integer', Rule::exists('pdts_departments', 'id')],
+            'directorateId' => ['required', 'integer', Rule::exists('pdts_directorates', 'id')->where('is_active', true)],
             'isActive' => ['boolean'],
+        ];
+    }
+
+    protected function messages(): array
+    {
+        return [
+            'directorateId.required' => 'Choose the directorate this department belongs to.',
+            'directorateId.exists' => 'Choose an active directorate.',
         ];
     }
 
@@ -52,14 +61,14 @@ class Departments extends Component
         $this->editingId = $department->id;
         $this->code = $department->code ?? '';
         $this->name = $department->name;
-        $this->parentDepartmentId = (string) ($department->parent_department_id ?? '');
+        $this->directorateId = (string) ($department->directorate_id ?? '');
         $this->isActive = $department->is_active;
     }
 
     public function cancelEdit(): void
     {
         $this->showForm = false;
-        $this->reset(['editingId', 'code', 'name', 'parentDepartmentId']);
+        $this->reset(['editingId', 'code', 'name', 'directorateId']);
         $this->isActive = true;
         $this->resetValidation();
     }
@@ -67,31 +76,20 @@ class Departments extends Component
     public function save(): void
     {
         $validated = $this->validate();
-        $parentId = $validated['parentDepartmentId'] !== '' ? (int) $validated['parentDepartmentId'] : null;
-
-        if ($this->editingId && $parentId === $this->editingId) {
-            $this->addError('parentDepartmentId', 'A department cannot be its own parent.');
-            return;
-        }
-
-        if ($this->editingId && $parentId && $this->wouldCreateCycle($parentId)) {
-            $this->addError('parentDepartmentId', 'This parent would create a department cycle.');
-            return;
-        }
 
         $department = $this->editingId
             ? PdtsDepartment::findOrFail($this->editingId)
             : new PdtsDepartment();
 
-        if (! $validated['isActive'] && $department->exists && $this->hasActiveChildren($department)) {
-            $this->addError('isActive', 'Deactivate this department’s active child departments and offices first.');
+        if (! $validated['isActive'] && $department->exists && $this->hasActiveOffices($department)) {
+            $this->addError('isActive', 'Deactivate this department’s active offices first.');
             return;
         }
 
         $department->fill([
             'code' => $validated['code'] ?: null,
             'name' => $validated['name'],
-            'parent_department_id' => $parentId,
+            'directorate_id' => (int) $validated['directorateId'],
             'is_active' => $validated['isActive'],
         ])->save();
 
@@ -101,51 +99,40 @@ class Departments extends Component
 
     public function toggleActive(int $id): void
     {
-        $department = PdtsDepartment::findOrFail($id);
-        if ($department->is_active && $this->hasActiveChildren($department)) {
-            session()->flash('error', 'Deactivate this department’s active child departments and offices first.');
+        $department = PdtsDepartment::with('directorate')->findOrFail($id);
+
+        if ($department->is_active && $this->hasActiveOffices($department)) {
+            session()->flash('error', 'Deactivate this department’s active offices first.');
+            return;
+        }
+
+        if (! $department->is_active && ! $department->directorate?->is_active) {
+            session()->flash('error', 'Put this department under an active directorate before activating it.');
             return;
         }
 
         $department->update(['is_active' => ! $department->is_active]);
     }
 
-    private function hasActiveChildren(PdtsDepartment $department): bool
+    private function hasActiveOffices(PdtsDepartment $department): bool
     {
-        return $department->children()->where('is_active', true)->exists()
-            || $department->offices()->where('is_active', true)->exists();
-    }
-
-    private function wouldCreateCycle(int $parentId): bool
-    {
-        $ancestor = PdtsDepartment::find($parentId);
-        while ($ancestor) {
-            if ($ancestor->id === $this->editingId) {
-                return true;
-            }
-            $ancestor = $ancestor->parent;
-        }
-
-        return false;
+        return $department->offices()->where('is_active', true)->exists();
     }
 
     public function render()
     {
         return view('livewire.pdts.organization.departments', [
             'departments' => PdtsDepartment::query()
-                ->with('parent')
-                ->withCount(['children', 'offices'])
+                ->with('directorate')
+                ->withCount('offices')
                 ->when($this->search !== '', fn ($query) => $query->where(function ($query) {
                     $query->where('name', 'like', '%'.$this->search.'%')
-                        ->orWhere('code', 'like', '%'.$this->search.'%');
+                        ->orWhere('code', 'like', '%'.$this->search.'%')
+                        ->orWhereHas('directorate', fn ($directorate) => $directorate->where('name', 'like', '%'.$this->search.'%'));
                 }))
                 ->orderBy('name')
                 ->paginate(15),
-            'parentOptions' => PdtsDepartment::query()
-                ->where('is_active', true)
-                ->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))
-                ->orderBy('name')
-                ->get(),
+            'directorates' => PdtsDirectorate::query()->where('is_active', true)->orderBy('name')->get(),
         ])->layout('layouts.master', ['title' => 'Departments']);
     }
 }

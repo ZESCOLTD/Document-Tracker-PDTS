@@ -39,7 +39,7 @@
                                 <small class="text-muted">{{ $document->subject }}</small>
                             </td>
                             <td>{{ $document->documentType->name }}</td>
-                            <td>{{ $document->originating_office }}<br><small class="text-muted">{{ $document->originating_department }}</small></td>
+                            <td>{{ $document->originating_office }}<br><small class="text-muted">{{ collect([$document->originating_department, $document->originating_directorate])->filter()->implode(' · ') }}</small></td>
                             <td>{{ $document->currentCustodian->name }}</td>
                             <td><span class="badge badge-secondary">{{ str($document->status)->replace('_', ' ')->title() }}</span></td>
                             <td>{{ $document->registered_at->format('d M Y H:i') }}</td>
