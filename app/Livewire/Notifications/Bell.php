@@ -75,6 +75,16 @@ class Bell extends Component
         $this->refresh();
     }
 
+    public function open(string $id)
+    {
+        $url = collect($this->recent)->firstWhere('id', $id)['url'] ?? '#';
+        $this->markAsRead($id);
+
+        if ($url !== '#') {
+            return $this->redirect($url);
+        }
+    }
+
     public function markAllAsRead(): void
     {
         $user = Auth::user();
