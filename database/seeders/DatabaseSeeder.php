@@ -11,6 +11,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             PdtsAccessSeeder::class,
             PdtsDocumentTypeSeeder::class,
+            PdtsDirectorateSeeder::class,
             SuperAdministratorSeeder::class,
         ]);
     }

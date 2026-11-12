@@ -5,6 +5,7 @@
             <p class="text-muted mb-0">Track current assignments and retain previous office history.</p>
         </div>
         <div class="btn-group" role="group" aria-label="Organizational management sections">
+            <a href="{{ route('pdts.organization.directorates') }}" class="btn btn-outline-secondary">Directorates</a>
             <a href="{{ route('pdts.organization.departments') }}" class="btn btn-outline-secondary">Departments</a>
             <a href="{{ route('pdts.organization.offices') }}" class="btn btn-outline-secondary">Offices</a>
             <a href="{{ route('pdts.organization.assignments') }}" class="btn btn-primary">Employee Assignments</a>
@@ -28,14 +29,14 @@
         <div class="table-responsive actions-overflow">
             <table class="table table-hover mb-0">
                 <thead>
-                    <tr><th>Employee</th><th>Office</th><th>Department</th><th>Position</th><th>Primary</th><th>Period</th><th class="text-right">Actions</th></tr>
+                    <tr><th>Employee</th><th>Office</th><th>Department / Directorate</th><th>Position</th><th>Primary</th><th>Period</th><th class="text-right">Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($assignments as $assignment)
                         <tr>
                             <td>{{ $assignment->user->name }}<br><small class="text-muted">{{ $assignment->user->man_no }}</small></td>
                             <td>{{ $assignment->office->name }}</td>
-                            <td>{{ $assignment->office->department->name }}</td>
+                            <td>{{ $assignment->office->unitLabel() }}</td>
                             <td>{{ $assignment->position ?: '—' }}</td>
                             <td>{{ $assignment->is_primary ? 'Yes' : 'No' }}</td>
                             <td>
@@ -78,7 +79,7 @@
                     <select id="assignment-office" class="form-control @error('officeId') is-invalid @enderror" wire:model="officeId" required>
                         <option value="">Select office</option>
                         @foreach($offices as $office)
-                            <option value="{{ $office->id }}">{{ $office->name }} · {{ $office->department->name }}</option>
+                            <option value="{{ $office->id }}">{{ $office->name }} · {{ $office->unitLabel() }}</option>
                         @endforeach
                     </select>
                     @error('officeId') <small class="text-danger">{{ $message }}</small> @enderror

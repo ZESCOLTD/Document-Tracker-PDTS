@@ -50,7 +50,7 @@
                 @include('layouts.partials.movements-sidebar')
 
                 @php
-                    $configPermissions = ['configuration.view', 'configuration.manage', 'document_types.manage', 'departments.manage', 'offices.manage', 'employee_assignments.manage', 'delegations.manage'];
+                    $configPermissions = ['configuration.view', 'configuration.manage', 'document_types.manage', 'directorates.manage', 'departments.manage', 'offices.manage', 'employee_assignments.manage', 'delegations.manage'];
                     $configOpen = request()->routeIs('configurations.*', 'pdts.organization.*');
                 @endphp
 
@@ -118,6 +118,13 @@
                                 <li class="nav-item">
                                     <a href="{{ route('pdts.organization.document-types') }}" class="nav-link {{ request()->routeIs('pdts.organization.document-types') ? 'active' : '' }}">
                                         <i class="nav-icon fas fa-tags"></i><p>Document Types</p>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('directorates.manage')
+                                <li class="nav-item">
+                                    <a href="{{ route('pdts.organization.directorates') }}" class="nav-link {{ request()->routeIs('pdts.organization.directorates') ? 'active' : '' }}">
+                                        <i class="nav-icon fas fa-landmark"></i><p>Directorates</p>
                                     </a>
                                 </li>
                             @endcan

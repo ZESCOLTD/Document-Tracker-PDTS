@@ -106,7 +106,8 @@
                         @foreach ([
                             ['Subject', $document->subject ?: 'Not recorded'],
                             ['Type', $document->documentType?->name ?? 'Not recorded'],
-                            ['Originating department', $document->originating_department ?: 'Not recorded'],
+                            ['Originating directorate', $document->originating_directorate ?: 'Not recorded'],
+                            ['Originating department', $document->originating_department ?: ($document->originating_directorate ? 'None (directorate office)' : 'Not recorded')],
                             ['Originating office', $document->originating_office ?: 'Not recorded'],
                             ['Registered by', $document->registrar?->name ?? 'Former user'],
                             ['Registered on', $document->registered_at?->format('d M Y H:i') ?? 'Not recorded'],

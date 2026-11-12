@@ -3,6 +3,7 @@
 use App\Livewire\Pdts\Documents\Registration;
 use App\Livewire\Pdts\Organization\DocumentTypes;
 use App\Models\PdtsDepartment;
+use App\Models\PdtsDirectorate;
 use App\Models\PdtsDocument;
 use App\Models\PdtsDocumentType;
 use App\Models\PdtsOffice;
@@ -20,8 +21,10 @@ beforeEach(function () {
     $this->employee = User::factory()->create()->assignRole('Originating Employee');
 
     $this->memo = PdtsDocumentType::create(['name' => 'Memorandum', 'is_active' => true]);
-    $this->finance = PdtsDepartment::create(['name' => 'Finance', 'is_active' => true]);
-    $this->ops = PdtsDepartment::create(['name' => 'Operations', 'is_active' => true]);
+    $this->ict = PdtsDirectorate::create(['name' => 'ICT', 'is_active' => true]);
+    $this->fid = PdtsDirectorate::create(['name' => 'Finance and Investments', 'is_active' => true]);
+    $this->finance = PdtsDepartment::create(['name' => 'Finance', 'directorate_id' => $this->fid->id, 'is_active' => true]);
+    $this->ops = PdtsDepartment::create(['name' => 'Operations', 'directorate_id' => $this->ict->id, 'is_active' => true]);
     $this->accounts = PdtsOffice::create(['name' => 'Accounts', 'department_id' => $this->finance->id, 'is_active' => true]);
     $this->depot = PdtsOffice::create(['name' => 'Depot', 'department_id' => $this->ops->id, 'is_active' => true]);
 });
@@ -32,6 +35,7 @@ function fillRegistration($component, array $overrides = [])
         'title' => 'Budget request',
         'subject' => 'Q4 budget',
         'document_type_id' => (string) test()->memo->id,
+        'directorate_id' => (string) test()->fid->id,
         'department_id' => (string) test()->finance->id,
         'office_id' => (string) test()->accounts->id,
         'attachment' => UploadedFile::fake()->createWithContent('scan.pdf', "%PDF-1.4\n%%EOF"),
@@ -46,28 +50,110 @@ function fillRegistration($component, array $overrides = [])
 }
 
 describe('registration form', function () {
-    test('offers only active types, departments and the chosen department\'s active offices', function () {
+    test('offers active directorates, then the chosen directorate\'s departments, then that department\'s offices', function () {
         PdtsDocumentType::create(['name' => 'Retired type', 'is_active' => false]);
-        PdtsDepartment::create(['name' => 'Closed department', 'is_active' => false]);
+        PdtsDirectorate::create(['name' => 'Closed directorate', 'is_active' => false]);
+        PdtsDepartment::create(['name' => 'Insurance', 'directorate_id' => $this->fid->id, 'is_active' => true]);
+        PdtsDepartment::create(['name' => 'Closed department', 'directorate_id' => $this->fid->id, 'is_active' => false]);
         PdtsOffice::create(['name' => 'Closed office', 'department_id' => $this->finance->id, 'is_active' => false]);
 
         Livewire::actingAs($this->employee)
             ->test(Registration::class)
             ->assertViewHas('documentTypes', fn ($types) => $types->pluck('name')->all() === ['Memorandum'])
-            ->assertViewHas('departments', fn ($departments) => $departments->pluck('name')->all() === ['Finance', 'Operations'])
+            ->assertViewHas('directorates', fn ($directorates) => $directorates->pluck('name')->all() === ['Finance and Investments', 'ICT'])
+            ->assertViewHas('departments', fn ($departments) => $departments->isEmpty())
             ->assertViewHas('offices', fn ($offices) => $offices->isEmpty())
+            ->set('directorate_id', (string) $this->fid->id)
+            ->assertViewHas('departments', fn ($departments) => $departments->pluck('name')->all() === ['Finance', 'Insurance'])
             ->set('department_id', (string) $this->finance->id)
             ->assertViewHas('offices', fn ($offices) => $offices->pluck('name')->all() === ['Accounts']);
     });
 
-    test('saves the chosen department and office names on the document', function () {
+    test('saves the chosen directorate, department and office names on the document', function () {
         fillRegistration(Livewire::actingAs($this->employee)->test(Registration::class))
             ->call('save')
             ->assertHasNoErrors();
 
         $document = PdtsDocument::sole();
-        expect($document->originating_department)->toBe('Finance')
+        expect($document->originating_directorate)->toBe('Finance and Investments')
+            ->and($document->originating_department)->toBe('Finance')
             ->and($document->originating_office)->toBe('Accounts');
+    });
+
+    test('changing the directorate clears the department and office', function () {
+        Livewire::actingAs($this->employee)
+            ->test(Registration::class)
+            ->set('directorate_id', (string) $this->fid->id)
+            ->set('department_id', (string) $this->finance->id)
+            ->set('office_id', (string) $this->accounts->id)
+            ->set('directorate_id', (string) $this->ict->id)
+            ->assertSet('department_id', '')
+            ->assertSet('office_id', '');
+    });
+
+    test('refuses a department from another directorate', function () {
+        fillRegistration(Livewire::actingAs($this->employee)->test(Registration::class), [
+            'directorate_id' => (string) $this->ict->id,
+            'department_id' => (string) $this->finance->id,
+            'office_id' => (string) $this->accounts->id,
+        ])->call('save')->assertHasErrors('department_id');
+
+        expect(PdtsDocument::count())->toBe(0);
+    });
+
+    test('without a department only the directorate\'s own offices show; with one only the department\'s', function () {
+        $director = PdtsOffice::create(['name' => 'Director', 'directorate_id' => $this->fid->id, 'is_head' => true, 'is_active' => true]);
+        PdtsOffice::create(['name' => 'Senior Manager', 'department_id' => $this->finance->id, 'is_head' => true, 'is_active' => true]);
+
+        Livewire::actingAs($this->employee)
+            ->test(Registration::class)
+            ->set('directorate_id', (string) $this->fid->id)
+            ->assertViewHas('offices', fn ($offices) => $offices->pluck('name')->all() === ['Director'])
+            ->set('department_id', (string) $this->finance->id)
+            ->assertViewHas('offices', fn ($offices) => $offices->pluck('name')->all() === ['Senior Manager', 'Accounts'])
+            ->set('department_id', '')
+            ->assertViewHas('offices', fn ($offices) => $offices->pluck('id')->all() === [$director->id]);
+    });
+
+    test('registers a document from the Director\'s office with no department', function () {
+        $director = PdtsOffice::create(['name' => 'Director', 'directorate_id' => $this->fid->id, 'is_head' => true, 'is_active' => true]);
+
+        fillRegistration(Livewire::actingAs($this->employee)->test(Registration::class), [
+            'department_id' => '',
+            'office_id' => (string) $director->id,
+        ])->call('save')->assertHasNoErrors();
+
+        expect(PdtsDocument::sole())
+            ->originating_directorate->toBe('Finance and Investments')
+            ->originating_department->toBeNull()
+            ->originating_office->toBe('Director');
+    });
+
+    test('refuses a department office when no department is chosen, and a directorate office when one is', function () {
+        $director = PdtsOffice::create(['name' => 'Director', 'directorate_id' => $this->fid->id, 'is_active' => true]);
+
+        fillRegistration(Livewire::actingAs($this->employee)->test(Registration::class), ['department_id' => ''])
+            ->call('save')
+            ->assertHasErrors('office_id');
+
+        fillRegistration(Livewire::actingAs($this->employee)->test(Registration::class), ['office_id' => (string) $director->id])
+            ->call('save')
+            ->assertHasErrors('office_id');
+
+        expect(PdtsDocument::count())->toBe(0);
+    });
+
+    test('starts with the registrar\'s directorate-level office selected', function () {
+        $director = PdtsOffice::create(['name' => 'Director', 'directorate_id' => $this->fid->id, 'is_active' => true]);
+        $this->employee->pdtsOfficeAssignments()->create([
+            'office_id' => $director->id, 'starts_at' => now()->subMonth(), 'is_primary' => true,
+        ]);
+
+        Livewire::actingAs($this->employee)
+            ->test(Registration::class)
+            ->assertSet('directorate_id', (string) $this->fid->id)
+            ->assertSet('department_id', '')
+            ->assertSet('office_id', (string) $director->id);
     });
 
     test('changing the department clears the office', function () {
@@ -103,18 +189,20 @@ describe('registration form', function () {
 
         Livewire::actingAs($this->employee)
             ->test(Registration::class)
+            ->assertSet('directorate_id', (string) $this->ict->id)
             ->assertSet('department_id', (string) $this->ops->id)
             ->assertSet('office_id', (string) $this->depot->id);
     });
 
-    test('says what to set up when there are no departments', function () {
+    test('says what to set up when there are no directorates', function () {
         PdtsOffice::query()->delete();
         PdtsDepartment::query()->delete();
+        PdtsDirectorate::query()->delete();
 
         Livewire::actingAs($this->admin)
             ->test(Registration::class)
             ->assertSee('be registered until there are active')
-            ->assertSee(route('pdts.organization.departments'));
+            ->assertSee(route('pdts.organization.directorates'));
     });
 });
 
@@ -135,8 +223,9 @@ describe('configuration pop-ups', function () {
 
         $page->call('openCreate')->call('cancelEdit')->assertSet('showForm', false);
     })->with([
-        'departments' => [\App\Livewire\Pdts\Organization\Departments::class, ['name' => 'Legal'], 'Add department'],
-        'offices' => [\App\Livewire\Pdts\Organization\Offices::class, ['name' => 'Registry', 'departmentId' => fn () => (string) test()->finance->id], 'Add office'],
+        'directorates' => [\App\Livewire\Pdts\Organization\Directorates::class, ['name' => 'Legal Services'], 'Add directorate'],
+        'departments' => [\App\Livewire\Pdts\Organization\Departments::class, ['name' => 'Legal', 'directorateId' => fn () => (string) test()->ict->id], 'Add department'],
+        'offices' => [\App\Livewire\Pdts\Organization\Offices::class, ['name' => 'Registry', 'directorateId' => fn () => (string) test()->fid->id, 'departmentId' => fn () => (string) test()->finance->id], 'Add office'],
         'document types' => [DocumentTypes::class, ['name' => 'Invoice'], 'Add document type'],
     ]);
 
@@ -188,6 +277,71 @@ describe('configuration pop-ups', function () {
             ->call('save')
             ->assertHasErrors('name')
             ->assertSet('showForm', true);
+    });
+});
+
+describe('offices configuration', function () {
+    test('adds the Director\'s office directly under a directorate', function () {
+        Livewire::actingAs($this->admin)->test(\App\Livewire\Pdts\Organization\Offices::class)
+            ->set('name', 'Director')
+            ->set('directorateId', (string) $this->fid->id)
+            ->set('isHead', true)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        expect(PdtsOffice::where('name', 'Director')->sole())
+            ->department_id->toBeNull()
+            ->directorate_id->toBe($this->fid->id)
+            ->is_head->toBeTrue();
+    });
+
+    test('a department office does not also store a directorate', function () {
+        Livewire::actingAs($this->admin)->test(\App\Livewire\Pdts\Organization\Offices::class)
+            ->set('name', 'Senior Manager')
+            ->set('directorateId', (string) $this->fid->id)
+            ->set('departmentId', (string) $this->finance->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        expect(PdtsOffice::where('name', 'Senior Manager')->sole())
+            ->department_id->toBe($this->finance->id)
+            ->directorate_id->toBeNull();
+    });
+
+    test('allows one head per directorate and one per department', function () {
+        PdtsOffice::create(['name' => 'Director', 'directorate_id' => $this->fid->id, 'is_head' => true, 'is_active' => true]);
+        PdtsOffice::create(['name' => 'Senior Manager', 'department_id' => $this->finance->id, 'is_head' => true, 'is_active' => true]);
+
+        $page = Livewire::actingAs($this->admin)->test(\App\Livewire\Pdts\Organization\Offices::class);
+
+        $page->set('name', 'Deputy Director')->set('directorateId', (string) $this->fid->id)->set('isHead', true)
+            ->call('save')->assertHasErrors('isHead');
+
+        $page->call('cancelEdit')
+            ->set('name', 'Manager')->set('directorateId', (string) $this->fid->id)->set('departmentId', (string) $this->finance->id)->set('isHead', true)
+            ->call('save')->assertHasErrors('isHead');
+
+        // A different department can have its own head.
+        $page->call('cancelEdit')
+            ->set('name', 'Senior Manager')->set('directorateId', (string) $this->ict->id)->set('departmentId', (string) $this->ops->id)->set('isHead', true)
+            ->call('save')->assertHasNoErrors();
+    });
+
+    test('refuses a department from another directorate', function () {
+        Livewire::actingAs($this->admin)->test(\App\Livewire\Pdts\Organization\Offices::class)
+            ->set('name', 'Registry')
+            ->set('directorateId', (string) $this->ict->id)
+            ->set('departmentId', (string) $this->finance->id)
+            ->call('save')
+            ->assertHasErrors('departmentId');
+    });
+
+    test('changing the directorate clears the department', function () {
+        Livewire::actingAs($this->admin)->test(\App\Livewire\Pdts\Organization\Offices::class)
+            ->set('directorateId', (string) $this->fid->id)
+            ->set('departmentId', (string) $this->finance->id)
+            ->set('directorateId', (string) $this->ict->id)
+            ->assertSet('departmentId', '');
     });
 });
 

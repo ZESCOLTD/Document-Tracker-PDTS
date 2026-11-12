@@ -5,6 +5,7 @@
             <p class="text-muted mb-0">Authorize an employee to acknowledge receipt on another employee’s behalf.</p>
         </div>
         <div class="btn-group" role="group" aria-label="Organizational management sections">
+            <a href="{{ route('pdts.organization.directorates') }}" class="btn btn-outline-secondary">Directorates</a>
             <a href="{{ route('pdts.organization.departments') }}" class="btn btn-outline-secondary">Departments</a>
             <a href="{{ route('pdts.organization.offices') }}" class="btn btn-outline-secondary">Offices</a>
             <a href="{{ route('pdts.organization.assignments') }}" class="btn btn-outline-secondary">Employee Assignments</a>

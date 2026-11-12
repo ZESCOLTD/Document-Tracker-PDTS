@@ -22,6 +22,7 @@ class PdtsDocument extends Model
         'subject',
         'description',
         'document_type_id',
+        'originating_directorate',
         'originating_department',
         'originating_office',
         'registered_by',
@@ -121,6 +122,7 @@ class PdtsDocument extends Model
             $query->where('reference_number', 'like', "%{$search}%")
                 ->orWhere('title', 'like', "%{$search}%")
                 ->orWhere('subject', 'like', "%{$search}%")
+                ->orWhere('originating_directorate', 'like', "%{$search}%")
                 ->orWhere('originating_department', 'like', "%{$search}%")
                 ->orWhere('originating_office', 'like', "%{$search}%");
         });

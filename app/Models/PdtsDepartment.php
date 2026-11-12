@@ -11,7 +11,7 @@ class PdtsDepartment extends Model
     protected $fillable = [
         'code',
         'name',
-        'parent_department_id',
+        'directorate_id',
         'is_active',
     ];
 
@@ -19,14 +19,9 @@ class PdtsDepartment extends Model
         'is_active' => 'boolean',
     ];
 
-    public function parent(): BelongsTo
+    public function directorate(): BelongsTo
     {
-        return $this->belongsTo(self::class, 'parent_department_id');
-    }
-
-    public function children(): HasMany
-    {
-        return $this->hasMany(self::class, 'parent_department_id');
+        return $this->belongsTo(PdtsDirectorate::class, 'directorate_id');
     }
 
     public function offices(): HasMany

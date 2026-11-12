@@ -2,6 +2,7 @@
 
 use App\Livewire\Pdts\Documents\Registration;
 use App\Models\PdtsDepartment;
+use App\Models\PdtsDirectorate;
 use App\Models\PdtsDocument;
 use App\Models\PdtsDocumentType;
 use App\Models\PdtsOffice;
@@ -36,7 +37,8 @@ beforeEach(function () {
         'is_active' => true,
     ]);
 
-    $this->department = PdtsDepartment::create(['name' => 'Operations', 'is_active' => true]);
+    $this->directorate = PdtsDirectorate::create(['name' => 'Operations Directorate', 'is_active' => true]);
+    $this->department = PdtsDepartment::create(['name' => 'Operations', 'directorate_id' => $this->directorate->id, 'is_active' => true]);
     $this->office = PdtsOffice::create(['name' => 'Lusaka Main Office', 'department_id' => $this->department->id, 'is_active' => true]);
 });
 
@@ -59,6 +61,7 @@ test('authorized employee can register a document with a unique reference and pr
         ->set('subject', 'Inspection results')
         ->set('description', 'Results from the northern area inspection.')
         ->set('document_type_id', (string) $this->documentType->id)
+        ->set('directorate_id', (string) $this->directorate->id)
         ->set('department_id', (string) $this->department->id)
         ->set('office_id', (string) $this->office->id)
         ->set('attachment', $file)
@@ -72,6 +75,7 @@ test('authorized employee can register a document with a unique reference and pr
         ->and($document->registered_by)->toBe($this->registrar->id)
         ->and($document->current_custodian_id)->toBe($this->registrar->id)
         ->and($document->attachments)->toHaveCount(1)
+        ->and($document->originating_directorate)->toBe('Operations Directorate')
         ->and($document->originating_department)->toBe('Operations')
         ->and($document->originating_office)->toBe('Lusaka Main Office');
 

@@ -118,7 +118,7 @@ class EmployeeAssignments extends Component
     public function render()
     {
         $assignments = PdtsEmployeeOfficeAssignment::query()
-            ->with(['user', 'office.department', 'assignedBy'])
+            ->with(['user', 'office.department.directorate', 'office.directorate', 'assignedBy'])
             ->when(! $this->showHistory, fn ($query) => $query->whereNull('ends_at'))
             ->when($this->search !== '', fn ($query) => $query->where(function ($query) {
                 $query->whereHas('user', fn ($user) => $user
@@ -132,7 +132,7 @@ class EmployeeAssignments extends Component
         return view('livewire.pdts.organization.employee-assignments', [
             'assignments' => $assignments,
             'users' => User::query()->where('is_banned', false)->orderBy('name')->get(['id', 'name', 'man_no']),
-            'offices' => PdtsOffice::query()->where('is_active', true)->with('department')->orderBy('name')->get(),
+            'offices' => PdtsOffice::query()->where('is_active', true)->with(['department.directorate', 'directorate'])->orderBy('name')->get(),
         ])->layout('layouts.master', ['title' => 'Employee Office Assignments']);
     }
 }

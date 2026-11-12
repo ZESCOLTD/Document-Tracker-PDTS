@@ -1,8 +1,10 @@
 <?php
 
 use App\Livewire\Pdts\Organization\Departments;
+use App\Livewire\Pdts\Organization\Directorates;
 use App\Livewire\Pdts\Organization\EmployeeAssignments;
 use App\Models\PdtsDepartment;
+use App\Models\PdtsDirectorate;
 use App\Models\PdtsEmployeeOfficeAssignment;
 use App\Models\PdtsOffice;
 use App\Models\User;
@@ -26,31 +28,70 @@ beforeEach(function () {
     $this->actingAs($this->admin);
 });
 
-test('departments can be created with a hierarchy and cycles are rejected', function () {
-    Livewire::test(Departments::class)
-        ->set('code', 'OPS')
-        ->set('name', 'Operations')
+test('directorates hold departments, which hold offices', function () {
+    Livewire::test(Directorates::class)
+        ->set('code', 'ICT')
+        ->set('name', 'ICT')
         ->call('save')
         ->assertHasNoErrors();
 
-    $parent = PdtsDepartment::where('name', 'Operations')->sole();
+    $ict = PdtsDirectorate::where('name', 'ICT')->sole();
+
+    foreach (['ERP', 'AI and ML'] as $name) {
+        Livewire::test(Departments::class)
+            ->set('name', $name)
+            ->set('directorateId', (string) $ict->id)
+            ->call('save')
+            ->assertHasNoErrors();
+    }
+
+    expect($ict->departments()->orderBy('name')->pluck('name')->all())->toBe(['AI and ML', 'ERP']);
+});
+
+test('the directorate seeder adds each directorate once', function () {
+    $this->seed(\Database\Seeders\PdtsDirectorateSeeder::class);
+    $this->seed(\Database\Seeders\PdtsDirectorateSeeder::class);
+
+    expect(PdtsDirectorate::pluck('name')->sort()->values()->all())
+        ->toBe(collect(\Database\Seeders\PdtsDirectorateSeeder::DIRECTORATES)->sort()->values()->all())
+        ->and(PdtsDirectorate::where('is_active', false)->exists())->toBeFalse()
+        ->and(PdtsOffice::count())->toBe(count(\Database\Seeders\PdtsDirectorateSeeder::DIRECTORATES))
+        ->and(PdtsOffice::where(['name' => 'Director', 'is_head' => true])->whereNull('department_id')->count())
+        ->toBe(count(\Database\Seeders\PdtsDirectorateSeeder::DIRECTORATES));
+});
+
+test('a department must belong to an active directorate', function () {
+    $closed = PdtsDirectorate::create(['name' => 'Closed', 'is_active' => false]);
 
     Livewire::test(Departments::class)
-        ->set('code', 'OPS-HR')
-        ->set('name', 'Human Resources')
-        ->set('parentDepartmentId', (string) $parent->id)
+        ->set('name', 'Insurance')
         ->call('save')
-        ->assertHasNoErrors();
-
-    $child = PdtsDepartment::where('name', 'Human Resources')->sole();
+        ->assertHasErrors(['directorateId' => 'required']);
 
     Livewire::test(Departments::class)
-        ->call('edit', $parent->id)
-        ->set('parentDepartmentId', (string) $child->id)
+        ->set('name', 'Insurance')
+        ->set('directorateId', (string) $closed->id)
         ->call('save')
-        ->assertHasErrors('parentDepartmentId');
+        ->assertHasErrors('directorateId');
 
-    expect($child->parent_department_id)->toBe($parent->id);
+    expect(PdtsDepartment::count())->toBe(0);
+});
+
+test('a directorate with active departments cannot be deactivated', function () {
+    $this->admin->givePermissionTo(Permission::firstOrCreate(['name' => 'directorates.manage', 'guard_name' => 'web']));
+    $directorate = PdtsDirectorate::create(['name' => 'Finance and Investments', 'is_active' => true]);
+    $insurance = PdtsDepartment::create(['name' => 'Insurance', 'directorate_id' => $directorate->id, 'is_active' => true]);
+
+    Livewire::test(Directorates::class)->call('toggleActive', $directorate->id);
+    expect($directorate->fresh()->is_active)->toBeTrue();
+
+    $insurance->update(['is_active' => false]);
+    Livewire::test(Directorates::class)->call('toggleActive', $directorate->id);
+    expect($directorate->fresh()->is_active)->toBeFalse();
+
+    // And its department cannot be reactivated while it is inactive.
+    Livewire::test(Departments::class)->call('toggleActive', $insurance->id);
+    expect($insurance->fresh()->is_active)->toBeFalse();
 });
 
 test('a primary office reassignment ends the previous assignment without deleting it', function () {
@@ -100,6 +141,10 @@ test('a primary office reassignment ends the previous assignment without deletin
 
 test('organization screens require their specific permissions', function () {
     $this->get(route('pdts.organization.departments'))->assertOk();
+    $this->get(route('pdts.organization.directorates'))->assertForbidden();
+
+    $this->admin->givePermissionTo(Permission::firstOrCreate(['name' => 'directorates.manage', 'guard_name' => 'web']));
+    $this->get(route('pdts.organization.directorates'))->assertOk();
 
     $employee = User::factory()->create(['man_no' => 'ORG-USER-2']);
     $this->actingAs($employee)

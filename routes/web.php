@@ -12,6 +12,7 @@ use App\Livewire\Pdts\Documents\Show as PdtsDocumentShow;
 use App\Livewire\Pdts\OcrWorkbench;
 use App\Livewire\Pdts\Organization\Delegations as PdtsDelegations;
 use App\Livewire\Pdts\Organization\Departments as PdtsDepartments;
+use App\Livewire\Pdts\Organization\Directorates as PdtsDirectorates;
 use App\Livewire\Pdts\Organization\EmployeeAssignments as PdtsEmployeeAssignments;
 use App\Livewire\Pdts\Organization\Offices as PdtsOffices;
 use App\Livewire\Settings\NotificationPreferences;
@@ -70,6 +71,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/ai/ocr', OcrWorkbench::class)
         ->middleware('can:ai.ocr.use')
         ->name('pdts.ai.ocr');
+    Route::get('/organization/directorates', PdtsDirectorates::class)
+        ->middleware('can:directorates.manage')
+        ->name('pdts.organization.directorates');
     Route::get('/organization/departments', PdtsDepartments::class)
         ->middleware('can:departments.manage')
         ->name('pdts.organization.departments');
