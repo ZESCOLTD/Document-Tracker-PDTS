@@ -1,5 +1,5 @@
 <aside class="main-sidebar sidebar-dark-primary elevation-4"
-       style="background: {{ config('theme.color_primary') }}">
+       style="background: {{ config('theme.color_sidebar') }}">
     <a href="{{ route('dashboard') }}" class="brand-link" style="background: {{ config('theme.color_accent') }}">
         <img src="{{ asset('assets-dashboard/dist/img/logo/zesco_logo.png') }}"
              alt="Logo"

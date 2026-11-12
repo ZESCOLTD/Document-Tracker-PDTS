@@ -9,7 +9,7 @@
         .doc-track-marker { background: var(--track-done); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px var(--track-done); display: block; height: 22px; margin: 0 auto .6rem; position: relative; width: 22px; z-index: 1; }
         .doc-track-stop.is-current .doc-track-marker { box-shadow: 0 0 0 2px var(--track-done), 0 0 0 7px rgba(0, 112, 60, .2); }
         .doc-track-stop.is-pending .doc-track-marker { background: linear-gradient(90deg, var(--track-pending) 50%, #fff 50%); box-shadow: 0 0 0 2px var(--track-pending); }
-        .doc-track-stop.is-ended .doc-track-marker { background: {{ config('theme.color_primary') }}; box-shadow: 0 0 0 2px {{ config('theme.color_primary') }}; }
+        .doc-track-stop.is-ended .doc-track-marker { background: {{ config('theme.color_sidebar') }}; box-shadow: 0 0 0 2px {{ config('theme.color_sidebar') }}; }
         .doc-track-office { display: block; font-weight: 700; overflow-wrap: anywhere; }
         .doc-track-events { list-style: none; margin: 0; padding: 0; }
         .doc-track-event { border-left: 3px solid var(--track-line); margin-left: 8px; padding: 0 0 1.25rem 1.25rem; position: relative; }

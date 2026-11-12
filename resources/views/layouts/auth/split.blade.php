@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
     @include('partials.head')
 </head>
 
-<body class="min-h-screen overflow-hidden bg-[#f1f5f9] antialiased dark:bg-[#020617]">
+<body class="min-h-screen overflow-hidden bg-slate-100 antialiased dark:bg-slate-950">
 
 <div class="relative grid h-dvh lg:grid-cols-2">
 
@@ -14,30 +14,25 @@
     {{-- ===================================================== --}}
     <div class="relative hidden overflow-hidden lg:flex">
 
-        {{-- Background Image --}}
+        {{-- Office photo --}}
         <img
-            src="{{ asset('assets-dashboard/img/login_bg22.png') }}"
-            alt="Background"
+            src="{{ asset('assets-dashboard/dist/img/login/office-photo.png') }}"
+            alt=""
             class="absolute inset-0 h-full w-full object-cover">
 
-        {{-- PRIMARY + ACCENT OVERLAY --}}
+        {{-- ZESCO green overlay --}}
         <div
-            class="absolute inset-0 bg-gradient-to-br from-[#253745]/97 via-[#2e4354]/93 to-[#1e2d38]/95">
+            class="absolute inset-0 bg-gradient-to-br from-[#0a4a28]/95 via-[#136b3a]/90 to-[#0a3920]/95">
         </div>
 
-        {{-- ORANGE AMBIENT GLOW --}}
+        {{-- Orange glow --}}
         <div
-            class="absolute -top-24 -left-20 h-[28rem] w-[28rem] rounded-full bg-[#f59d33]/20 blur-3xl">
+            class="absolute -bottom-32 -left-20 h-[28rem] w-[28rem] rounded-full bg-[#f39c34]/25 blur-3xl">
         </div>
 
-        {{-- PRIMARY COLOR GLOW --}}
+        {{-- Green glow --}}
         <div
-            class="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-[#253745]/35 blur-3xl">
-        </div>
-
-        {{-- SOFT ORANGE OVERLAY --}}
-        <div
-            class="absolute top-1/3 right-1/4 h-72 w-72 rounded-full bg-[#f59d33]/10 blur-3xl">
+            class="absolute -top-24 right-0 h-96 w-96 rounded-full bg-[#1a9650]/30 blur-3xl">
         </div>
 
         {{-- GRID OVERLAY --}}
@@ -52,130 +47,61 @@
         {{-- CONTENT --}}
         <div class="relative z-20 flex h-full w-full flex-col justify-between p-16 text-white">
 
-            {{-- ===================================================== --}}
-            {{-- TOP BRANDING --}}
-            {{-- ===================================================== --}}
-            <div>
+            {{-- Top branding: ZESCO logo on white plate for contrast --}}
+            <div class="flex items-center gap-5">
 
-                {{-- Flat Logo --}}
-                <div class="flex items-center gap-5">
-
+                <div class="flex items-center justify-center rounded-2xl bg-white px-5 py-3 shadow-xl">
                     <img
-                        src="{{ asset('assets-dashboard/img/logo.png') }}"
-                        alt="Logo"
-                        class="h-16 w-auto object-contain">
-
-                    <div>
-
-                        <h1 class="text-3xl font-semibold tracking-wide text-white">
-                            {{ config('app.name') }}
-                        </h1>
-
-                        <p class="mt-1 text-sm uppercase tracking-[0.25em] text-slate-200/80">
-                            ZESCO Physical Document Tracking System
-                        </p>
-
-                    </div>
-
+                        src="{{ asset('assets-dashboard/dist/img/logo/ZESCO_removebg.png') }}"
+                        alt="ZESCO"
+                        class="h-14 w-auto object-contain">
                 </div>
 
-                {{-- Elegant Divider --}}
-                <div
-                    class="mt-8 h-[2px] w-40 rounded-full bg-gradient-to-r from-[#f59d33] via-[#ffd089] to-transparent">
+                <div>
+                    <p class="text-2xl font-bold tracking-wide text-white">PDTS</p>
+                    <p class="text-xs uppercase tracking-[0.25em] text-emerald-100/80">ZESCO</p>
                 </div>
 
             </div>
 
-            {{-- ===================================================== --}}
-            {{-- HERO CONTENT --}}
-            {{-- ===================================================== --}}
+            {{-- Hero --}}
             <div class="max-w-2xl">
 
-                {{-- Badge --}}
-                <div
-                    class="mb-6 inline-flex items-center rounded-full border border-[#f59d33]/30 bg-[#f59d33]/10 px-5 py-2 text-sm font-medium text-[#ffd089] backdrop-blur-sm">
-
-                    ZESCO PHYSICAL DOCUMENT TRACKING SYSTEM
-
-                </div>
-
-                {{-- Heading --}}
-                <h2 class="text-5xl font-light leading-tight tracking-wide text-white">
-
-
-
-                    <span class="font-semibold text-[#f59d33]">Physical Document</span>
-                    Tracking System
-
+                <h2 class="text-5xl font-bold leading-tight tracking-tight text-white">
+                    Physical Document<br>
+                    <span class="text-[#f39c34]">Tracking System</span>
                 </h2>
 
-                {{-- Description --}}
-                <p class="mt-8 max-w-xl text-lg leading-8 text-slate-200/80">
+                <div class="mt-6 h-1 w-24 rounded-full bg-[#f39c34]"></div>
 
-                    Secure access to ZESCO's physical document tracking workspace.
-
+                <p class="mt-6 max-w-xl text-lg leading-8 text-emerald-50/90">
+                    Track, manage and monitor the movement of physical documents across the organisation.
                 </p>
 
-                {{-- ===================================================== --}}
-                {{-- FEATURE HIGHLIGHTS --}}
-                {{-- ===================================================== --}}
-                <div class="mt-14 grid grid-cols-2 gap-6">
+            </div>
 
-                    {{-- Feature 1 --}}
-                    <div
-                        class="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition duration-300 hover:bg-white/10">
+            {{-- Feature highlights --}}
+            <div class="grid grid-cols-3 divide-x divide-white/20 text-center">
 
-                        <div
-                            class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#f59d33]/15 text-xl text-[#f59d33]">
+                <div class="flex flex-col items-center gap-3 px-4">
+                    <svg class="h-9 w-9 text-[#f39c34]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                    <span class="text-sm font-medium text-white">Register Documents</span>
+                </div>
 
-                            📍
+                <div class="flex flex-col items-center gap-3 px-4">
+                    <svg class="h-9 w-9 text-[#f39c34]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                    </svg>
+                    <span class="text-sm font-medium text-white">Forward &amp; Acknowledge</span>
+                </div>
 
-                        </div>
-
-                        <div class="text-sm uppercase tracking-widest text-[#ffd089]">
-                            Property Operations
-                        </div>
-
-{{--                        <div class="mt-2 text-lg font-semibold text-white">--}}
-{{--                            Site & Property Monitoring--}}
-{{--                        </div>--}}
-
-{{--                        <p class="mt-3 text-sm leading-6 text-slate-200/70">--}}
-
-{{--                            approvals, documentation, and site activities efficiently.--}}
-
-{{--                        </p>--}}
-
-                    </div>
-
-                    {{-- Feature 2 --}}
-                    <div
-                        class="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition duration-300 hover:bg-white/10">
-
-                        <div
-                            class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#253745]/40 text-xl text-[#d5dde3]">
-
-                            🏗️
-
-                        </div>
-
-                        <div class="text-sm uppercase tracking-widest text-slate-300">
-                            Projects &amp; Approvals
-                        </div>
-
-{{--                        <div class="mt-2 text-lg font-semibold text-white">--}}
-{{--                            Project Coordination--}}
-{{--                        </div>--}}
-
-{{--                        <p class="mt-3 text-sm leading-6 text-slate-200/70">--}}
-
-{{--                            Improve collaboration across departments,--}}
-{{--                            field teams, approvals, and infrastructure projects.--}}
-
-{{--                        </p>--}}
-
-                    </div>
-
+                <div class="flex flex-col items-center gap-3 px-4">
+                    <svg class="h-9 w-9 text-[#f39c34]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+                    </svg>
+                    <span class="text-sm font-medium text-white">Track to Completion</span>
                 </div>
 
             </div>
@@ -191,11 +117,11 @@
 
         {{-- Decorative Background Elements --}}
         <div
-            class="absolute top-10 right-10 h-40 w-40 rounded-full bg-[#f59d33]/10 blur-3xl">
+            class="absolute top-10 right-10 h-40 w-40 rounded-full bg-[#f39c34]/10 blur-3xl">
         </div>
 
         <div
-            class="absolute bottom-10 left-10 h-52 w-52 rounded-full bg-[#253745]/20 blur-3xl">
+            class="absolute bottom-10 left-10 h-52 w-52 rounded-full bg-[#1a9650]/15 blur-3xl">
         </div>
 
         {{-- LOGIN WRAPPER --}}
@@ -204,53 +130,71 @@
             {{-- Mobile Logo --}}
             <div class="mb-10 flex flex-col items-center lg:hidden">
 
-                <img
-                    src="{{ asset('assets-dashboard/img/logo.png') }}"
-                    alt="Logo"
-                    class="h-16 w-auto object-contain">
+                <div class="flex items-center justify-center rounded-2xl bg-white px-5 py-3 shadow-md">
+                    <img
+                        src="{{ asset('assets-dashboard/dist/img/logo/ZESCO_removebg.png') }}"
+                        alt="ZESCO"
+                        class="h-14 w-auto object-contain">
+                </div>
 
-                <h1 class="mt-5 text-3xl font-semibold tracking-wide text-slate-800 dark:text-white">
-                    {{ config('app.name') }}
+                <h1 class="mt-5 text-3xl font-bold tracking-wide text-[#0f5f33] dark:text-emerald-300">
+                    PDTS
                 </h1>
 
-                <p class="mt-2 text-sm uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
-                    ZESCO Physical Document Tracking System
+                <p class="mt-2 text-sm uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Physical Document Tracking System
                 </p>
 
             </div>
 
             {{-- LOGIN CARD --}}
             <div
-                class="rounded-3xl border border-slate-200/70 bg-white/90 p-8 shadow-[0_25px_80px_rgba(15,23,42,0.10)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/85">
+                class="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_25px_80px_rgba(15,23,42,0.10)] sm:p-10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
 
-                {{-- Accent --}}
-                <div class="mb-8 flex items-center gap-3">
+                {{-- Card header (desktop) --}}
+                <div class="mb-8 hidden flex-col items-center text-center lg:flex">
 
-                    <div class="h-1.5 w-14 rounded-full bg-[#253745]"></div>
+                    <div class="flex items-center justify-center rounded-2xl bg-white px-5 py-3 shadow-md">
+                        <img
+                            src="{{ asset('assets-dashboard/dist/img/logo/ZESCO_removebg.png') }}"
+                            alt="ZESCO"
+                            class="h-16 w-auto object-contain">
+                    </div>
 
-                    <div class="h-1.5 w-6 rounded-full bg-[#f59d33]"></div>
+                    <h1 class="mt-4 text-3xl font-extrabold tracking-wide text-[#0f5f33] dark:text-emerald-300">
+                        PDTS
+                    </h1>
+
+                    <p class="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                        Physical Document Tracking System
+                    </p>
 
                 </div>
 
                 {{-- Welcome --}}
                 <div class="mb-8">
 
-                    <h2 class="text-3xl font-semibold tracking-tight text-slate-800 dark:text-white">
-                        Welcome Back
+                    <h2 class="text-2xl font-semibold tracking-tight text-slate-800 dark:text-white">
+                        Sign In to Your Account
                     </h2>
 
                     <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-
                         Sign in to continue to PDTS.
-
                     </p>
 
                 </div>
 
                 {{-- LOGIN FORM SLOT --}}
-                <div class="space-y-6">
+                <div class="relative z-10 space-y-6">
                     {{ $slot }}
                 </div>
+
+                {{-- Document stack decoration --}}
+                <img
+                    src="{{ asset('assets-dashboard/dist/img/login/document-stack.png') }}"
+                    alt=""
+                    aria-hidden="true"
+                    class="pointer-events-none absolute -bottom-6 -right-6 w-44 opacity-20">
 
             </div>
 

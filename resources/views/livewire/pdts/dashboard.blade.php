@@ -27,7 +27,7 @@
         .pdts-dash .tone-teal   { --tone: #0f9d8a; --tone-soft: #e3f6f3; --tone-deep: #097a6b; }
         .pdts-dash .tone-indigo { --tone: #6247c9; --tone-soft: #efebfb; --tone-deep: #4a33a3; }
         .pdts-dash .tone-red    { --tone: #d64545; --tone-soft: #fdecec; --tone-deep: #b03030; }
-        .pdts-dash .hero { background: linear-gradient(120deg, #1f2d3d 0%, #2b3f56 100%); color: #fff; border-radius: .5rem; padding: 1.25rem 1.5rem; position: relative; overflow: hidden; }
+        .pdts-dash .hero { background: linear-gradient(120deg, #00452B 0%, #075B35 100%); color: #fff; border-radius: .5rem; padding: 1.25rem 1.5rem; position: relative; overflow: hidden; }
         .pdts-dash .hero::after { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(243, 156, 18, .35), rgba(243, 156, 18, 0) 70%); }
         .pdts-dash .hero h3 { color: #fff; }
         .pdts-dash .hero .hero-sub { color: rgba(255, 255, 255, .78); }
@@ -181,7 +181,7 @@
         <div data-section="organisation">
             <div class="row">
                 @foreach ([
-                    ['Open documents', $organisation['open'], '#1f2d3d', 'fa-folder-open', "of {$organisation['total']} registered"],
+                    ['Open documents', $organisation['open'], '#075B35', 'fa-folder-open', "of {$organisation['total']} registered"],
                     ['Overdue handovers', $organisation['overdueCount'], '#dc3545', 'fa-hourglass-half', 'waiting for receipt'],
                     ['Registered', $organisation['registered30'], '#28a745', 'fa-file-signature', 'last 30 days'],
                     ['Received', $organisation['received30'], '#17a2b8', 'fa-check-double', "last 30 days · {$organisation['declined30']} declined"],

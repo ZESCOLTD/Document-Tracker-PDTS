@@ -6,7 +6,7 @@
 {{ Illuminate\Mail\Markdown::parse($slot) }}
 
 <div style="margin-top: 12px; border-top: 2px solid {{ config('theme.color_accent', '#f59d33') }}; padding-top: 12px;">
-<strong style="color: {{ config('theme.color_primary', '#253745') }};">PDTS</strong> — ZESCO Physical Document Tracking System<br>
+<strong style="color: {{ config('theme.color_sidebar', '#075B35') }};">PDTS</strong> — ZESCO Physical Document Tracking System<br>
 This is an automated notification. Please do not reply to this email.<br>
 For support, contact your ZESCO system administrator.
 </div>

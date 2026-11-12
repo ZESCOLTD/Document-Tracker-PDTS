@@ -41,7 +41,7 @@
                             <td>{{ $document->documentType->name }}</td>
                             <td>{{ $document->originating_office }}<br><small class="text-muted">{{ collect([$document->originating_department, $document->originating_directorate])->filter()->implode(' · ') }}</small></td>
                             <td>{{ $document->currentCustodian->name }}</td>
-                            <td><span class="badge badge-secondary">{{ str($document->status)->replace('_', ' ')->title() }}</span></td>
+                            <td><span class="badge text-white" style="background: {{ match ($document->status) { 'received' => '#075B35', 'awaiting_receipt' => '#e8890c', default => '#6c757d' } }};">{{ str($document->status)->replace('_', ' ')->title() }}</span></td>
                             <td>{{ $document->registered_at->format('d M Y H:i') }}</td>
                         </tr>
                     @empty
