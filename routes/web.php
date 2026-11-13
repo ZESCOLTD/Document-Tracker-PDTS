@@ -105,10 +105,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['auth'])->get('/support-center', AdminChatCenter::class)->name('support.center');
 });
 
-Route::get('/getManNumbers', [UtilsController::class, 'getManNumbers'])->name('getManNumbers');
-Route::get('/getManNumber', [UtilsController::class, 'getManNumber'])->name('getManNumber');
-Route::get('/getEmployee', [UtilsController::class, 'getEmployee'])->name('getEmployee');
-Route::get('/getManNumbersFiltered', [UtilsController::class, 'getManNumbers'])->name('getManNumbersFiltered');
+Route::middleware('auth')->group(function () {
+    Route::get('/getManNumbers', [UtilsController::class, 'getManNumbers'])->name('getManNumbers');
+    Route::get('/getManNumber', [UtilsController::class, 'getManNumber'])->name('getManNumber');
+    Route::get('/getEmployee', [UtilsController::class, 'getEmployee'])->name('getEmployee');
+    Route::get('/getManNumbersFiltered', [UtilsController::class, 'getManNumbers'])->name('getManNumbersFiltered');
+});
 
 require __DIR__.'/settings.php';
 require __DIR__.'/movements.php';

@@ -23,6 +23,7 @@ class Track extends Component
     public const TABS = [
         'all' => 'All',
         'in-progress' => 'In progress',
+        'completed' => 'Completed',
     ];
 
     protected $paginationTheme = 'bootstrap';
@@ -76,6 +77,7 @@ class Track extends Component
     private function inTab(Builder $query, string $tab): Builder
     {
         return match ($tab) {
+            'completed' => $query->where('status', DocumentStatus::Completed->value),
             'in-progress' => $query->whereIn('status', [
                 DocumentStatus::Registered->value,
                 DocumentStatus::AwaitingReceipt->value,

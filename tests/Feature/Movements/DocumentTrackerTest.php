@@ -42,6 +42,28 @@ function tracked(PdtsDocument $document): array
     return app(DocumentTracker::class)->for($document->fresh());
 }
 
+test('history includes messenger pickup and final completion without assigning custody to the messenger', function () {
+    $messenger = User::factory()->create(['name' => 'Assigned Messenger']);
+    $movement = $this->custody->forward($this->document, $this->employee, $this->supervisor, null, $messenger);
+    $this->custody->confirmPickup($movement, $messenger);
+    $this->custody->acknowledge($movement, $this->supervisor);
+    $this->custody->complete($this->document, $this->supervisor, 'signed', 'Original signed');
+
+    $track = tracked($this->document);
+
+    expect($track['headline'])->toBe('Completed')
+        ->and($track['detail'])->toContain('Sid Supervisor is the final holder')
+        ->and(collect($track['events'])->pluck('type')->all())->toContain('completed', 'picked_up')
+        ->and($track['stops'])->toHaveCount(2)
+        ->and($track['stops'][1]['state'])->toBe('ended');
+
+    Livewire::actingAs($messenger)->test(History::class, ['document' => $this->document])
+        ->assertSee('Picked up')->assertSee('Original signed')->assertSee('Completed');
+
+    $this->actingAs($messenger)->get(route('movements.history', $this->document))
+        ->assertOk()->assertSee('Original signed');
+});
+
 describe('stops', function () {
     test('a new document has one current stop at the registering office', function () {
         $track = tracked($this->document);

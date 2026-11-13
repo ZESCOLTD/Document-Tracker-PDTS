@@ -26,12 +26,50 @@ class CustodyService
 {
     private const MAX_TEXT_LENGTH = 1000;
 
-    public function forward(PdtsDocument $document, User $sender, User $recipient, ?string $remarks = null): DocumentMovement
+    public const COMPLETION_ACTIONS = [
+        'signed' => 'Signed',
+        'reviewed' => 'Reviewed',
+        'filed' => 'Filed',
+        'other' => 'Other',
+    ];
+
+    public function complete(PdtsDocument $document, User $user, string $action, string $reason): PdtsDocument
+    {
+        $reason = $this->cleanReason($reason);
+
+        if (! array_key_exists($action, self::COMPLETION_ACTIONS)) {
+            throw new CustodyException('Choose the action completed.');
+        }
+
+        return DB::transaction(function () use ($document, $user, $action, $reason) {
+            $locked = $this->lockDocument($document->getKey());
+
+            if ((int) $locked->current_custodian_id !== (int) $user->getKey()) {
+                throw new CustodyException('Only the current custodian can complete this document.');
+            }
+
+            if ($locked->statusEnum() !== DocumentStatus::Received || $locked->pendingMovement()->exists()) {
+                throw new CustodyException('Only a received document with no pending handover can be completed.');
+            }
+
+            $locked->update(['status' => DocumentStatus::Completed->value]);
+            $locked->auditLogs()->create([
+                'actor_id' => $user->getKey(),
+                'occurred_at' => now(),
+                'action' => 'document_completed',
+                'details' => ['action_type' => $action, 'reason' => $reason],
+            ]);
+
+            return $locked;
+        });
+    }
+
+    public function forward(PdtsDocument $document, User $sender, User $recipient, ?string $remarks = null, ?User $messenger = null): DocumentMovement
     {
         $remarks = $this->cleanOptionalText($remarks, 'Remarks');
 
         try {
-            $movement = DB::transaction(function () use ($document, $sender, $recipient, $remarks) {
+            $movement = DB::transaction(function () use ($document, $sender, $recipient, $remarks, $messenger) {
                 $locked = $this->lockDocument($document->getKey());
 
                 if ($reason = $this->forwardBlockedReason($locked, $sender)) {
@@ -42,8 +80,11 @@ class CustodyService
                     throw new CustodyException('This person cannot receive documents. Choose another active user.');
                 }
 
+                $this->validateMessenger($messenger, $sender, $recipient);
+
                 $movement = $locked->movements()->create([
                     'sender_id' => $sender->getKey(),
+                    'messenger_id' => $messenger?->getKey(),
                     'recipient_id' => $recipient->getKey(),
                     'sender_office' => $sender->officeName(),
                     'recipient_office' => $recipient->officeName(),
@@ -70,6 +111,35 @@ class CustodyService
             DocumentHandoverNotification::FORWARDED,
         );
 
+        if ($messenger) {
+            $this->notify([$messenger], $movement, DocumentHandoverNotification::ASSIGNED);
+        }
+
+        return $movement;
+    }
+
+    public function confirmPickup(DocumentMovement $movement, User $user): DocumentMovement
+    {
+        $movement = DB::transaction(function () use ($movement, $user) {
+            [$document, $locked] = $this->lockPending($movement);
+
+            if ((int) $locked->messenger_id !== (int) $user->getKey()
+                || ! $this->eligibleMessengers($locked->sender, $locked->recipient)->whereKey($user->getKey())->exists()) {
+                throw new CustodyException('Only the assigned active messenger can confirm pickup.');
+            }
+
+            if ($locked->picked_up_at) {
+                throw new CustodyException('Pickup has already been confirmed.');
+            }
+
+            $locked->update(['picked_up_at' => now()]);
+            $this->audit($document, $user, 'handover_picked_up', $locked);
+
+            return $locked;
+        });
+
+        $this->notify([$movement->sender, $movement->recipient], $movement, DocumentHandoverNotification::PICKED_UP);
+
         return $movement;
     }
 
@@ -87,6 +157,10 @@ class CustodyService
 
             if (! $this->isRecipient($locked, $user) && ! $isDelegate) {
                 throw new CustodyException('Only the intended recipient or an authorized delegate can acknowledge this document.');
+            }
+
+            if ($locked->messenger_id && ! $locked->picked_up_at) {
+                throw new CustodyException('The messenger must confirm pickup before receipt can be acknowledged.');
             }
 
             $locked->update([
@@ -111,7 +185,7 @@ class CustodyService
             return $locked;
         });
 
-        $this->notify([$movement->sender], $movement, DocumentHandoverNotification::ACKNOWLEDGED);
+        $this->notify([$movement->sender, $movement->messenger], $movement, DocumentHandoverNotification::ACKNOWLEDGED);
 
         return $movement;
     }
@@ -135,7 +209,7 @@ class CustodyService
             return $locked;
         });
 
-        $this->notify([$movement->sender], $movement, DocumentHandoverNotification::DECLINED);
+        $this->notify([$movement->sender, $movement->messenger], $movement, DocumentHandoverNotification::DECLINED);
 
         return $movement;
     }
@@ -157,7 +231,7 @@ class CustodyService
             return $locked;
         });
 
-        $recipients = [$movement->recipient];
+        $recipients = [$movement->recipient, $movement->messenger];
         if ((int) $movement->sender_id !== (int) $user->getKey()) {
             $recipients[] = $movement->sender;
         }
@@ -165,6 +239,103 @@ class CustodyService
         $this->notify($recipients, $movement, DocumentHandoverNotification::CANCELLED);
 
         return $movement;
+    }
+
+    /**
+     * Returns a received document to the previous holder for correction.
+     * The sender stays custodian until that person acknowledges the return.
+     */
+    public function sendBack(PdtsDocument $document, User $user, string $category, string $reason, ?User $messenger = null): DocumentMovement
+    {
+        $reason = $this->cleanReason($reason);
+
+        if (! array_key_exists($category, DocumentMovement::RETURN_CATEGORIES)) {
+            throw new CustodyException('Choose why the document is being sent back.');
+        }
+
+        try {
+            $movement = DB::transaction(function () use ($document, $user, $category, $reason, $messenger) {
+                $locked = $this->lockDocument($document->getKey());
+
+                if ((int) $locked->current_custodian_id !== (int) $user->getKey()) {
+                    throw new CustodyException('Only the current custodian can send this document back.');
+                }
+
+                if (! $user->can('documents.forward')) {
+                    throw new CustodyException('You do not have permission to send documents back.');
+                }
+
+                if ($locked->pendingMovement()->exists()) {
+                    throw new CustodyException('This document already has a handover awaiting receipt.');
+                }
+
+                if ($locked->statusEnum() !== DocumentStatus::Received) {
+                    throw new CustodyException('Only a received document can be sent back.');
+                }
+
+                $previous = $this->returnTarget($locked);
+
+                if (! $previous) {
+                    throw new CustodyException('There is no earlier holder to send this document back to.');
+                }
+
+                if (! $this->eligibleRecipients($user)->whereKey($previous->getKey())->exists()) {
+                    throw new CustodyException('The previous holder cannot receive documents right now. Contact an administrator.');
+                }
+
+                $this->validateMessenger($messenger, $user, $previous);
+
+                $movement = $locked->movements()->create([
+                    'sender_id' => $user->getKey(),
+                    'messenger_id' => $messenger?->getKey(),
+                    'recipient_id' => $previous->getKey(),
+                    'sender_office' => $user->officeName(),
+                    'recipient_office' => $previous->officeName(),
+                    'status' => MovementStatus::AwaitingReceipt,
+                    'forwarded_at' => now(),
+                    'remarks' => $reason,
+                    'return_category' => $category,
+                    'open_document_id' => $locked->getKey(),
+                ]);
+
+                $locked->update(['status' => DocumentStatus::AwaitingReceipt->value]);
+
+                $this->audit($locked, $user, 'handover_returned', $movement, [
+                    'recipient_id' => $previous->getKey(),
+                    'category' => $category,
+                    'reason' => $reason,
+                ]);
+
+                return $movement;
+            });
+        } catch (UniqueConstraintViolationException) {
+            throw new CustodyException('This document already has a handover awaiting receipt.');
+        }
+
+        $this->notify(
+            [$movement->recipient, ...$this->activeDelegates($movement->recipient)->all()],
+            $movement,
+            DocumentHandoverNotification::RETURNED,
+        );
+
+        if ($messenger) {
+            $this->notify([$messenger], $movement, DocumentHandoverNotification::ASSIGNED);
+        }
+
+        return $movement;
+    }
+
+    /**
+     * The person who held the document before the current custodian.
+     */
+    public function returnTarget(PdtsDocument $document): ?User
+    {
+        return $document->movements()
+            ->where('status', MovementStatus::Acknowledged->value)
+            ->where('new_custodian_id', $document->current_custodian_id)
+            ->latest('id')
+            ->first()
+            ?->sender;
     }
 
     /**
@@ -197,6 +368,15 @@ class CustodyService
             || $user->can('documents.cancel');
     }
 
+    public function canViewDeliveries(User $user): bool
+    {
+        return $user->can('deliveries.view') || DocumentMovement::query()
+            ->where('messenger_id', $user->getKey())
+            ->where('status', MovementStatus::AwaitingReceipt->value)
+            ->whereHas('document')
+            ->exists();
+    }
+
     /**
      * People involved in the document, plus anyone who can view audit records.
      * The same rule covers access to the scanned copy, so a recipient can check
@@ -211,7 +391,8 @@ class CustodyService
             || $document->movements()
                 ->where(fn (Builder $query) => $query
                     ->where('sender_id', $userId)
-                    ->orWhere('recipient_id', $userId))
+                    ->orWhere('recipient_id', $userId)
+                    ->orWhere('messenger_id', $userId))
                 ->exists()
             || PdtsUserDelegation::query()
                 ->activeAt()
@@ -233,6 +414,22 @@ class CustodyService
             ->where(fn (Builder $query) => $query
                 ->whereNull('banned_until')
                 ->orWhere('banned_until', '<=', now()));
+    }
+
+    public function eligibleMessengers(User $sender, ?User $recipient = null): Builder
+    {
+        return User::query()
+            ->whereKeyNot($sender->getKey())
+            ->when($recipient, fn (Builder $query) => $query->whereKeyNot($recipient->getKey()))
+            ->where('is_banned', false)
+            ->where(fn (Builder $query) => $query->whereNull('banned_until')->orWhere('banned_until', '<=', now()));
+    }
+
+    private function validateMessenger(?User $messenger, User $sender, User $recipient): void
+    {
+        if ($messenger && ! $this->eligibleMessengers($sender, $recipient)->whereKey($messenger->getKey())->exists()) {
+            throw new CustodyException('Choose an active messenger other than the sender or recipient.');
+        }
     }
 
     private function lockDocument(int|string $documentId): PdtsDocument
@@ -326,6 +523,7 @@ class CustodyService
                 'movement_id' => $movement->getKey(),
                 'sender_id' => $movement->sender_id,
                 'recipient_id' => $movement->recipient_id,
+                'messenger_id' => $movement->messenger_id,
                 ...array_filter($details, fn ($value) => $value !== null),
             ],
         ]);

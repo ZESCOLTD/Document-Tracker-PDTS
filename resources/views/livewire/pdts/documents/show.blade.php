@@ -1,6 +1,7 @@
 @php
     $status = $document->statusEnum();
     $statusTone = match ($document->status) {
+        'completed' => ['#e8f5ec', '#218838', 'fa-check-double'],
         'received' => ['#e7f1ff', '#1f5fbf', 'fa-check-circle'],
         'awaiting_receipt' => ['#fff4e0', '#b86e00', 'fa-shipping-fast'],
         default => ['#eef0f3', '#4a5563', 'fa-file-alt'],
@@ -13,6 +14,9 @@
         'handover_acknowledged' => ['Received', 'fa-check', '#28a745'],
         'handover_declined' => ['Declined', 'fa-times', '#dc3545'],
         'handover_cancelled' => ['Handover cancelled', 'fa-ban', '#6c757d'],
+        'handover_returned' => ['Sent back', 'fa-undo', '#e8890c'],
+        'document_completed' => ['Completed', 'fa-check-double', '#218838'],
+        'handover_picked_up' => ['Picked up', 'fa-truck', '#17a2b8'],
     ];
 
     $fileIcon = fn ($attachment) => match (true) {
@@ -79,6 +83,9 @@
                     <div class="font-weight-bold">On its way to {{ $pending->recipient?->name ?? 'a former user' }}</div>
                     <div class="small text-muted">
                         Sent {{ $pending->forwarded_at?->diffForHumans() }}.
+                        @if ($pending->messenger_id)
+                            Messenger: {{ $pending->messenger?->name }}. {{ $pending->picked_up_at ? 'Picked up.' : 'Awaiting pickup.' }}
+                        @endif
                         {{ $document->currentCustodian?->name ?? 'The sender' }} stays responsible until it is acknowledged.
                     </div>
                 </div>
@@ -185,11 +192,14 @@
                             <div class="flex-grow-1" style="min-width: 0;">
                                 <div>
                                     <strong>{{ $title }}</strong>
-                                    @if ($event->action === 'handover_forwarded' && $to) to {{ $to }} @endif
+                                    @if ($event->action === 'document_completed')
+                                        ({{ \App\Services\Documents\CustodyService::COMPLETION_ACTIONS[$event->details['action_type'] ?? ''] ?? 'Other' }})
+                                    @endif
+                                    @if (in_array($event->action, ['handover_forwarded', 'handover_returned']) && $to) to {{ $to }} @endif
                                     <span class="text-muted">by {{ $event->actor?->name ?? 'Former user' }}</span>
                                 </div>
                                 @if ($note)
-                                    <div class="note">{{ in_array($event->action, ['handover_declined', 'handover_cancelled']) ? 'Reason: ' : '' }}{{ $note }}</div>
+                                    <div class="note">{{ in_array($event->action, ['handover_declined', 'handover_cancelled', 'handover_returned']) ? 'Reason: ' : '' }}{{ $note }}</div>
                                 @endif
                             </div>
                             <div class="when">

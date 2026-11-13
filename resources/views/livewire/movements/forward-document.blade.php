@@ -3,13 +3,13 @@
         <div class="small text-success mb-1" role="status">{{ $notice }}</div>
     @endif
 
-    @if ($canForward)
+    @if ($canForward && $showTrigger)
         <div class="text-right">
             <button type="button" class="btn btn-sm btn-primary text-white" wire:click="openForm">
                 <i class="fas fa-share mr-1"></i>Forward
             </button>
         </div>
-    @elseif (! $notice && $document?->status === \App\Enums\DocumentStatus::AwaitingReceipt)
+    @elseif ($showTrigger && ! $notice && $document?->status === \App\Enums\DocumentStatus::AwaitingReceipt)
         <div class="text-right small text-muted">Waiting for receipt</div>
     @endif
 
@@ -63,6 +63,19 @@
                                     @endif
                                 @endif
                             </div>
+
+                            @if ($selectedRecipient)
+                            <div class="form-group">
+                                <label for="forward-messenger-{{ $documentId }}">Messenger (optional)</label>
+                                <select id="forward-messenger-{{ $documentId }}" wire:model="messengerId" class="form-control @error('messengerId') is-invalid @enderror">
+                                    <option value="">Direct handover</option>
+                                    @foreach ($messengers as $messenger)
+                                        <option value="{{ $messenger->id }}">{{ $messenger->name }} ({{ $messenger->man_no }})</option>
+                                    @endforeach
+                                </select>
+                                @error('messengerId') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                            </div>
+                            @endif
 
                             <div class="form-group mb-0">
                                 <label for="forward-remarks-{{ $documentId }}">Remarks (optional)</label>

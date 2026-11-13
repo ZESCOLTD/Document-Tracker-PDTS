@@ -29,6 +29,9 @@
                             <td>{{ $movement->document->documentType?->name ?? '—' }}</td>
                             <td>
                                 {{ $movement->sender->name }}
+                                @if ($movement->messenger_id)
+                                    <div class="small text-info">Messenger: {{ $movement->messenger?->name }}. {{ $movement->picked_up_at ? 'Picked up' : 'Awaiting pickup' }}</div>
+                                @endif
                                 @if((int) $movement->recipient_id !== (int) auth()->id())
                                     <div class="small text-info">For {{ $movement->recipient->name }}</div>
                                 @endif
@@ -45,7 +48,7 @@
                                 @endif
                             </td>
                             <td class="text-right text-nowrap">
-                                <button type="button" class="btn btn-sm btn-success" wire:click="openAcknowledge({{ $movement->id }})">
+                                <button type="button" class="btn btn-sm btn-success" wire:click="openAcknowledge({{ $movement->id }})" @disabled($movement->messenger_id && ! $movement->picked_up_at)>
                                     Acknowledge
                                 </button>
                                 @if((int) $movement->recipient_id === (int) auth()->id())

@@ -12,17 +12,27 @@ use LogicException;
  */
 class DocumentMovement extends Model
 {
+    public const RETURN_CATEGORIES = [
+        'wrong_document' => 'Wrong document',
+        'missing_item' => 'Missing item',
+        'wrong_signature' => 'Wrong or missing signature',
+        'other' => 'Other',
+    ];
+
     protected $table = 'pdts_document_movements';
 
     protected $fillable = [
         'pdts_document_id',
         'sender_id',
         'recipient_id',
+        'messenger_id',
+        'picked_up_at',
         'sender_office',
         'recipient_office',
         'status',
         'forwarded_at',
         'remarks',
+        'return_category',
         'acknowledged_at',
         'acknowledged_by',
         'new_custodian_id',
@@ -36,6 +46,7 @@ class DocumentMovement extends Model
     protected $casts = [
         'status' => MovementStatus::class,
         'forwarded_at' => 'datetime',
+        'picked_up_at' => 'datetime',
         'acknowledged_at' => 'datetime',
         'closed_at' => 'datetime',
     ];
@@ -68,6 +79,11 @@ class DocumentMovement extends Model
         return $this->belongsTo(User::class, 'acknowledged_by')->withTrashed();
     }
 
+    public function messenger(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'messenger_id')->withTrashed();
+    }
+
     public function newCustodian(): BelongsTo
     {
         return $this->belongsTo(User::class, 'new_custodian_id')->withTrashed();
@@ -81,5 +97,15 @@ class DocumentMovement extends Model
     public function isPending(): bool
     {
         return $this->status === MovementStatus::AwaitingReceipt;
+    }
+
+    public function isReturn(): bool
+    {
+        return $this->return_category !== null;
+    }
+
+    public function returnCategoryLabel(): ?string
+    {
+        return self::RETURN_CATEGORIES[$this->return_category] ?? null;
     }
 }

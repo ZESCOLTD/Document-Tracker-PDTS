@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -21,11 +22,16 @@ class ForwardDocument extends Component
     #[Locked]
     public int $documentId;
 
+    #[Locked]
+    public bool $showTrigger = true;
+
     public bool $open = false;
 
     public string $search = '';
 
     public ?int $recipientId = null;
+
+    public ?int $messengerId = null;
 
     public string $remarks = '';
 
@@ -38,6 +44,7 @@ class ForwardDocument extends Component
         $this->documentId = $document->getKey();
     }
 
+    #[On('open-forward.{documentId}')]
     public function openForm(): void
     {
         $this->resetForm();
@@ -54,18 +61,21 @@ class ForwardDocument extends Component
     public function selectRecipient(int $recipientId): void
     {
         $this->recipientId = $recipientId;
+        $this->messengerId = null;
         $this->search = '';
     }
 
     public function clearRecipient(): void
     {
         $this->recipientId = null;
+        $this->messengerId = null;
     }
 
     public function forward(CustodyService $custody): void
     {
         $this->validate([
             'recipientId' => ['required', 'integer'],
+            'messengerId' => ['nullable', 'integer'],
             'remarks' => ['nullable', 'string', 'max:1000'],
         ], ['recipientId.required' => 'Choose who you are forwarding this document to.']);
 
@@ -77,7 +87,12 @@ class ForwardDocument extends Component
                 throw new CustodyException('This document or recipient is no longer available.');
             }
 
-            $custody->forward($document, Auth::user(), $recipient, $this->remarks);
+            $messenger = $this->messengerId ? User::find($this->messengerId) : null;
+            if ($this->messengerId && ! $messenger) {
+                throw new CustodyException('This messenger is no longer available.');
+            }
+
+            $custody->forward($document, Auth::user(), $recipient, $this->remarks, $messenger);
 
             $this->notice = "Forwarded to {$recipient->name}. You remain the custodian until they acknowledge.";
             $this->errorMessage = null;
@@ -98,6 +113,9 @@ class ForwardDocument extends Component
             'document' => $document,
             'selectedRecipient' => $this->recipientId ? $custody->eligibleRecipients($user)->find($this->recipientId) : null,
             'matches' => $this->open && ! $this->recipientId ? $this->searchRecipients($custody) : collect(),
+            'messengers' => $this->open && $this->recipientId
+                ? $custody->eligibleMessengers($user, $this->recipientId ? User::find($this->recipientId) : null)->orderBy('name')->get()
+                : collect(),
         ]);
     }
 
@@ -121,7 +139,7 @@ class ForwardDocument extends Component
 
     private function resetForm(): void
     {
-        $this->reset(['search', 'recipientId', 'remarks']);
+        $this->reset(['search', 'recipientId', 'messengerId', 'remarks']);
         $this->resetValidation();
     }
 }

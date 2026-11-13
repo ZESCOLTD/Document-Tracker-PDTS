@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DocumentScanController;
 use App\Livewire\Movements\Custody;
+use App\Livewire\Movements\Deliveries;
 use App\Livewire\Movements\History;
 use App\Livewire\Movements\Pending;
 use App\Livewire\Movements\Track;
@@ -14,6 +15,7 @@ Route::middleware(['auth', 'verified'])
         Route::get('track', Track::class)->middleware('can:documents.register')->name('track');
         Route::get('pending', Pending::class)->middleware('can:documents.acknowledge')->name('pending');
         Route::get('custody', Custody::class)->middleware('can:documents.forward')->name('custody');
+        Route::get('deliveries', Deliveries::class)->name('deliveries');
 
         // Access to these two depends on the document, so they check it themselves.
         Route::get('documents/{document}/history', History::class)->name('history');

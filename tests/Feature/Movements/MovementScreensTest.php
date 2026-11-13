@@ -3,6 +3,7 @@
 use App\Enums\DocumentStatus;
 use App\Enums\MovementStatus;
 use App\Livewire\Movements\Custody;
+use App\Livewire\Movements\Deliveries;
 use App\Livewire\Movements\ForwardDocument;
 use App\Livewire\Movements\History;
 use App\Livewire\Movements\Pending;
@@ -48,6 +49,140 @@ function addScan(PdtsDocument $document): void
         'is_primary' => true,
     ]);
 }
+
+describe('messenger screens', function () {
+    test('forward form assigns a system user as messenger', function () {
+        $messenger = User::factory()->create();
+
+        Livewire::actingAs($this->sender)->test(ForwardDocument::class, ['document' => $this->document])
+            ->call('openForm')
+            ->call('selectRecipient', $this->recipient->id)
+            ->set('messengerId', $messenger->id)
+            ->call('forward')
+            ->assertHasNoErrors();
+
+        expect($this->document->pendingMovement->messenger_id)->toBe($messenger->id);
+    });
+
+    test('messenger sees the assignment and confirms pickup from My Deliveries', function () {
+        $messenger = User::factory()->create();
+        $movement = $this->custody->forward($this->document, $this->sender, $this->recipient, null, $messenger);
+
+        $screen = Livewire::actingAs($messenger)->test(Deliveries::class)
+            ->assertSee('My Deliveries')
+            ->assertSee('PDTS-2026-0001')
+            ->assertDontSee('wire:confirm=', false)
+            ->call('openPickup', $movement->id)
+            ->assertSee('Do you confirm that you have physically picked up this document?')
+            ->assertSee('Sam Sender')
+            ->assertSee('Rita Recipient');
+
+        expect($movement->fresh()->picked_up_at)->toBeNull();
+
+        $screen
+            ->call('confirmPickup', $movement->id)
+            ->assertSet('pickupError', null)
+            ->assertSet('pickupMovementId', null)
+            ->assertSee('Pickup confirmed.');
+
+        expect($movement->fresh()->picked_up_at)->not->toBeNull();
+    });
+
+    test('another messenger cannot confirm pickup through a forged request', function () {
+        $messenger = User::factory()->create();
+        $movement = $this->custody->forward($this->document, $this->sender, $this->recipient, null, $messenger);
+
+        Livewire::actingAs(screenUser('Messenger'))->test(Deliveries::class)
+            ->assertDontSee('PDTS-2026-0001')
+            ->call('openPickup', $movement->id)
+            ->assertSet('pickupMovementId', null)
+            ->assertDontSee('Do you confirm that you have physically picked up this document?')
+            ->call('confirmPickup', $movement->id)
+            ->assertSet('pickupError', 'Open the pickup dialog and confirm the selected document.');
+
+        expect($movement->fresh()->picked_up_at)->toBeNull();
+    });
+
+    test('cancelling the pickup dialog does not record pickup', function () {
+        $messenger = User::factory()->create();
+        $movement = $this->custody->forward($this->document, $this->sender, $this->recipient, null, $messenger);
+
+        Livewire::actingAs($messenger)->test(Deliveries::class)
+            ->call('openPickup', $movement->id)
+            ->call('closePickup')
+            ->assertSet('pickupMovementId', null)
+            ->assertDontSee('Do you confirm that you have physically picked up this document?')
+            ->call('confirmPickup', $movement->id)
+            ->assertSet('pickupError', 'Open the pickup dialog and confirm the selected document.');
+
+        expect($movement->fresh()->picked_up_at)->toBeNull();
+    });
+
+    test('a cancelled handover cannot be picked up from an already open dialog', function () {
+        $messenger = screenUser('Messenger');
+        $movement = $this->custody->forward($this->document, $this->sender, $this->recipient, null, $messenger);
+        $screen = Livewire::actingAs($messenger)->test(Deliveries::class)->call('openPickup', $movement->id);
+
+        $this->custody->cancel($movement, $this->sender, 'Delivery no longer needed');
+
+        $screen->call('confirmPickup', $movement->id)
+            ->assertSet('pickupMovementId', null)
+            ->assertSet('pickupNotice', null);
+
+        expect($movement->fresh()->picked_up_at)->toBeNull();
+    });
+
+    test('the sidebar links assigned users to deliveries and the dashboard has no pickup controls', function () {
+        $messenger = User::factory()->create();
+        $this->custody->forward($this->document, $this->sender, $this->recipient, null, $messenger);
+
+        $this->actingAs($messenger)->get(route('dashboard'))
+            ->assertOk()->assertSee(route('movements.deliveries'))
+            ->assertDontSee('Confirm pickup');
+        $this->get(route('movements.deliveries'))->assertOk()->assertSee('PDTS-2026-0001');
+    });
+
+    test('the messenger role can open an empty deliveries page without document processing rights', function () {
+        $messenger = screenUser('Messenger');
+
+        expect($messenger->hasPermissionTo('deliveries.view'))->toBeTrue()
+            ->and($messenger->hasPermissionTo('documents.forward'))->toBeFalse()
+            ->and($messenger->hasPermissionTo('documents.acknowledge'))->toBeFalse();
+
+        $this->actingAs($messenger)->get(route('movements.deliveries'))
+            ->assertOk()->assertSee('No deliveries are currently assigned to you.');
+    });
+
+    test('unassigned users cannot open deliveries or see its sidebar link', function () {
+        $this->actingAs($this->sender)->get(route('movements.deliveries'))->assertForbidden();
+        $this->get(route('dashboard'))->assertOk()->assertDontSee(route('movements.deliveries'));
+    });
+});
+
+describe('completion form', function () {
+    test('the holder completes a received document', function () {
+        $movement = $this->custody->forward($this->document, $this->sender, $this->recipient);
+        $this->custody->acknowledge($movement, $this->recipient);
+
+        Livewire::actingAs($this->recipient)->test(Custody::class)
+            ->assertSee('Complete')
+            ->call('openComplete', $this->document->id)
+            ->set('completionAction', 'signed')
+            ->set('completionReason', 'Signed original retained')
+            ->call('complete')
+            ->assertHasNoErrors()
+            ->assertSet('completingDocumentId', null);
+
+        expect($this->document->fresh()->status)->toBe('completed');
+    });
+
+    test('requires an action and details', function () {
+        Livewire::actingAs($this->sender)->test(Custody::class)
+            ->call('openComplete', $this->document->id)
+            ->call('complete')
+            ->assertHasErrors(['completionAction', 'completionReason']);
+    });
+});
 
 describe('pages', function () {
     test('load for a user with access', function (string $route) {

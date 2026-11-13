@@ -296,6 +296,104 @@ describe('cancel', function () {
     });
 });
 
+describe('send back', function () {
+    beforeEach(function () {
+        $this->custody->acknowledge($this->custody->forward($this->document, $this->sender, $this->recipient), $this->recipient);
+        $this->document = $this->document->fresh();
+    });
+
+    test('records a return to the previous holder and keeps the returner as custodian', function () {
+        $movement = $this->custody->sendBack($this->document, $this->recipient, 'missing_item', 'Page 2 is missing');
+
+        $document = $this->document->fresh();
+
+        expect((int) $document->current_custodian_id)->toBe($this->recipient->id)
+            ->and($document->statusEnum())->toBe(DocumentStatus::AwaitingReceipt)
+            ->and((int) $movement->recipient_id)->toBe($this->sender->id)
+            ->and($movement->status)->toBe(MovementStatus::AwaitingReceipt)
+            ->and($movement->return_category)->toBe('missing_item')
+            ->and($movement->returnCategoryLabel())->toBe('Missing item')
+            ->and($movement->isReturn())->toBeTrue()
+            ->and($movement->remarks)->toBe('Page 2 is missing');
+    });
+
+    test('acknowledging the return gives custody back to the previous holder', function () {
+        $movement = $this->custody->sendBack($this->document, $this->recipient, 'wrong_document', 'Wrong file');
+
+        $this->custody->acknowledge($movement, $this->sender);
+
+        $document = $this->document->fresh();
+
+        expect((int) $document->current_custodian_id)->toBe($this->sender->id)
+            ->and($document->statusEnum())->toBe(DocumentStatus::Received);
+    });
+
+    test('declining the return keeps custody with the returner', function () {
+        $movement = $this->custody->sendBack($this->document, $this->recipient, 'other', 'Please check');
+
+        $this->custody->decline($movement, $this->sender, 'Not mine to correct');
+
+        $document = $this->document->fresh();
+
+        expect((int) $document->current_custodian_id)->toBe($this->recipient->id)
+            ->and($document->statusEnum())->toBe(DocumentStatus::Received);
+    });
+
+    test('is rejected for anyone but the current custodian', function () {
+        $this->custody->sendBack($this->document, $this->sender, 'other', 'Not mine');
+    })->throws(CustodyException::class, 'Only the current custodian');
+
+    test('requires a valid reason category', function () {
+        $this->custody->sendBack($this->document, $this->recipient, 'made_up', 'Details');
+    })->throws(CustodyException::class, 'Choose why');
+
+    test('requires a reason', function () {
+        $this->custody->sendBack($this->document, $this->recipient, 'other', '');
+    })->throws(CustodyException::class, 'give a reason');
+
+    test('is rejected while another handover is pending', function () {
+        $this->custody->forward($this->document, $this->recipient, custodyUser('Manager'));
+
+        $this->custody->sendBack($this->document->fresh(), $this->recipient, 'other', 'Too soon');
+    })->throws(CustodyException::class, 'already has a handover');
+
+    test('is rejected for a document that is not received', function () {
+        $draft = PdtsDocument::factory()->create([
+            'current_custodian_id' => $this->sender->id,
+            'status' => DocumentStatus::Registered->value,
+        ]);
+
+        $this->custody->sendBack($draft, $this->sender, 'other', 'Not received yet');
+    })->throws(CustodyException::class, 'Only a received document');
+
+    test('is rejected when there is no earlier holder', function () {
+        $first = PdtsDocument::factory()->create([
+            'current_custodian_id' => $this->recipient->id,
+            'status' => DocumentStatus::Received->value,
+        ]);
+
+        $this->custody->sendBack($first, $this->recipient, 'other', 'Nowhere to go');
+    })->throws(CustodyException::class, 'no earlier holder');
+
+    test('is rejected when the previous holder can no longer receive documents', function () {
+        $this->sender->update(['is_banned' => true]);
+
+        $this->custody->sendBack($this->document, $this->recipient, 'other', 'Banned now');
+    })->throws(CustodyException::class, 'cannot receive documents');
+
+    test('notifies the previous holder', function () {
+        Notification::fake();
+
+        $this->custody->sendBack($this->document, $this->recipient, 'wrong_signature', 'Unsigned');
+
+        Notification::assertSentTo(
+            $this->sender,
+            DocumentHandoverNotification::class,
+            fn (DocumentHandoverNotification $notification) => $notification->event === DocumentHandoverNotification::RETURNED,
+        );
+    });
+});
+
 test('the full employee to director journey keeps one custodian and a complete history', function () {
     $supervisor = $this->recipient;
     $manager = custodyUser('Manager');
@@ -466,5 +564,110 @@ test('statuses have plain-English labels for the tracking pages', function () {
         'Not sent',
         'Sent, not received yet',
         'Received',
+        'Completed',
     ]);
+});
+
+describe('messenger', function () {
+    beforeEach(function () {
+        Notification::fake();
+        $this->messenger = User::factory()->create();
+        $this->movement = $this->custody->forward($this->document, $this->sender, $this->recipient, null, $this->messenger);
+    });
+
+    test('assignment and pickup keep the sender as custodian and notify participants', function () {
+        Notification::assertSentTo($this->messenger, DocumentHandoverNotification::class,
+            fn ($notice) => $notice->event === DocumentHandoverNotification::ASSIGNED);
+
+        $movement = $this->custody->confirmPickup($this->movement, $this->messenger);
+
+        expect($movement->picked_up_at)->not->toBeNull()
+            ->and($this->document->fresh()->current_custodian_id)->toBe($this->sender->id)
+            ->and($this->custody->canViewHistory($this->document, $this->messenger))->toBeTrue();
+
+        Notification::assertSentTo([$this->sender, $this->recipient], DocumentHandoverNotification::class,
+            fn ($notice) => $notice->event === DocumentHandoverNotification::PICKED_UP);
+    });
+
+    test('only the assigned messenger can confirm pickup', function () {
+        $this->custody->confirmPickup($this->movement, $this->sender);
+    })->throws(CustodyException::class, 'Only the assigned active messenger');
+
+    test('banned messengers cannot confirm pickup', function () {
+        $this->messenger->update(['is_banned' => true]);
+        $this->custody->confirmPickup($this->movement, $this->messenger);
+    })->throws(CustodyException::class, 'Only the assigned active messenger');
+
+    test('pickup cannot be repeated', function () {
+        $this->custody->confirmPickup($this->movement, $this->messenger);
+        $this->custody->confirmPickup($this->movement, $this->messenger);
+    })->throws(CustodyException::class, 'already been confirmed');
+
+    test('receipt requires pickup when a messenger is assigned', function () {
+        $this->custody->acknowledge($this->movement, $this->recipient);
+    })->throws(CustodyException::class, 'must confirm pickup');
+
+    test('receipt notifies the messenger and transfers custody to the recipient', function () {
+        $this->custody->confirmPickup($this->movement, $this->messenger);
+        $this->custody->acknowledge($this->movement, $this->recipient);
+
+        expect($this->document->fresh()->current_custodian_id)->toBe($this->recipient->id);
+        Notification::assertSentTo($this->messenger, DocumentHandoverNotification::class,
+            fn ($notice) => $notice->event === DocumentHandoverNotification::ACKNOWLEDGED);
+    });
+
+    test('cancelled assignments cannot be picked up and notify the messenger', function () {
+        $this->custody->cancel($this->movement, $this->sender, 'Not needed');
+        Notification::assertSentTo($this->messenger, DocumentHandoverNotification::class,
+            fn ($notice) => $notice->event === DocumentHandoverNotification::CANCELLED);
+        $this->custody->confirmPickup($this->movement, $this->messenger);
+    })->throws(CustodyException::class);
+
+    test('rejects sender recipient and inactive users as messenger', function () {
+        $this->custody->cancel($this->movement, $this->sender, 'Replace');
+        $this->custody->forward($this->document, $this->sender, $this->recipient, null, $this->recipient);
+    })->throws(CustodyException::class, 'Choose an active messenger');
+});
+
+describe('completion', function () {
+    beforeEach(function () {
+        $movement = $this->custody->forward($this->document, $this->sender, $this->recipient);
+        $this->custody->acknowledge($movement, $this->recipient);
+    });
+
+    test('records the action and keeps the final holder', function () {
+        $document = $this->custody->complete($this->document, $this->recipient, 'signed', 'Signed and filed.');
+
+        expect($document->statusEnum())->toBe(DocumentStatus::Completed)
+            ->and($document->current_custodian_id)->toBe($this->recipient->id)
+            ->and($document->auditLogs()->where('action', 'document_completed')->first()->details)
+            ->toBe(['action_type' => 'signed', 'reason' => 'Signed and filed.']);
+    });
+
+    test('rejects a different holder', function () {
+        $this->custody->complete($this->document, $this->sender, 'signed', 'Done');
+    })->throws(CustodyException::class, 'Only the current custodian');
+
+    test('rejects a pending handover', function () {
+        $this->custody->forward($this->document, $this->recipient, $this->sender);
+        $this->custody->complete($this->document, $this->recipient, 'signed', 'Done');
+    })->throws(CustodyException::class, 'no pending handover');
+
+    test('requires a reason', function () {
+        $this->custody->complete($this->document, $this->recipient, 'signed', '  ');
+    })->throws(CustodyException::class, 'Please give a reason');
+
+    test('rejects an unknown action', function () {
+        $this->custody->complete($this->document, $this->recipient, 'invalid', 'Done');
+    })->throws(CustodyException::class, 'Choose the action');
+
+    test('cannot be forwarded after completion even through a stale model', function () {
+        $this->custody->complete($this->document, $this->recipient, 'filed', 'Done');
+        $this->custody->forward($this->document, $this->recipient, $this->sender);
+    })->throws(CustodyException::class, 'completed document cannot be forwarded');
+
+    test('cannot be completed twice', function () {
+        $this->custody->complete($this->document, $this->recipient, 'filed', 'Done');
+        $this->custody->complete($this->document, $this->recipient, 'filed', 'Again');
+    })->throws(CustodyException::class, 'Only a received document');
 });

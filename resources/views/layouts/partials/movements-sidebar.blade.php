@@ -1,4 +1,5 @@
-@canany(['documents.register', 'documents.acknowledge', 'documents.forward'])
+@php($canViewDeliveries = app(\App\Services\Documents\CustodyService::class)->canViewDeliveries(auth()->user()))
+@if ($canViewDeliveries || auth()->user()->canAny(['documents.register', 'documents.acknowledge', 'documents.forward']))
     <li class="nav-header text-uppercase" style="color: {{ config('theme.color_accent') }}">Document Tracking</li>
     @can('documents.acknowledge')
         <li class="nav-item">
@@ -21,4 +22,11 @@
             </a>
         </li>
     @endcan
-@endcanany
+    @if ($canViewDeliveries)
+        <li class="nav-item">
+            <a href="{{ route('movements.deliveries') }}" class="nav-link {{ request()->routeIs('movements.deliveries') ? 'active' : '' }}">
+                <i class="nav-icon fas fa-truck"></i><p>My Deliveries</p>
+            </a>
+        </li>
+    @endif
+@endif

@@ -2,6 +2,7 @@
 
 namespace App\Services\Documents;
 
+use App\Enums\DocumentStatus;
 use App\Enums\MovementStatus;
 use App\Models\DocumentMovement;
 use App\Models\PdtsDocument;
@@ -38,6 +39,7 @@ class DocumentTracker
 
         $received = $movements->filter(fn (DocumentMovement $m) => $m->status === MovementStatus::Acknowledged)->values();
         $pending = $movements->first(fn (DocumentMovement $m) => $m->isPending());
+        $completedAt = $document->auditLogs->firstWhere('action', 'document_completed')?->occurred_at;
 
         $registeredLog = $document->auditLogs->firstWhere('action', 'registered');
         $registrant = $document->registrar ?? $registeredLog?->actor ?? $movements->first()?->sender ?? $document->currentCustodian;
@@ -69,7 +71,7 @@ class DocumentTracker
                 $receivedEvent = $this->event('received', 'Received', $receivedOffice, $movement, $movement->acknowledged_at, [
                     $forwarded,
                     'Acknowledged by '.$movement->acknowledgedBy?->name,
-                    $this->heldFor($movement->acknowledged_at, $next?->acknowledged_at),
+                    $this->heldFor($movement->acknowledged_at, $next?->acknowledged_at ?? $completedAt),
                 ]);
                 $receivedEvent['person'] = $receivedPerson;
                 $events[] = $receivedEvent;
@@ -91,8 +93,28 @@ class DocumentTracker
             }
         }
 
+        foreach ($document->auditLogs->whereIn('action', ['handover_picked_up', 'document_completed']) as $audit) {
+            $isCompletion = $audit->action === 'document_completed';
+            $movement = $movements->firstWhere('id', $audit->details['movement_id'] ?? null);
+            $events[] = [
+                'type' => $isCompletion ? 'completed' : 'picked_up',
+                'title' => $isCompletion ? 'Completed' : 'Picked up',
+                'office' => $isCompletion ? $this->currentOffice($document, $received) : ($movement?->sender_office ?? self::NO_OFFICE),
+                'person' => $audit->actor?->name,
+                'at' => $audit->occurred_at,
+                'details' => $isCompletion ? [CustodyService::COMPLETION_ACTIONS[$audit->details['action_type'] ?? ''] ?? 'Other'] : [],
+                'remarks' => $audit->details['reason'] ?? null,
+            ];
+        }
+
+        $stops = $this->markStates($stops, (bool) $pending);
+        if ($document->statusEnum() === DocumentStatus::Completed) {
+            $stops[array_key_last($stops)]['state'] = 'ended';
+            $stops[array_key_last($stops)]['label'] = 'Completed';
+        }
+
         return [
-            'stops' => $this->markStates($stops, (bool) $pending),
+            'stops' => $stops,
             'events' => collect($events)
                 ->map(fn (array $event, int $index) => $event + ['order' => $index])
                 ->sortByDesc(fn (array $event) => [$event['at']?->getTimestamp() ?? 0, $event['order']])
@@ -178,6 +200,14 @@ class DocumentTracker
     private function summary(PdtsDocument $document, Collection $received, ?DocumentMovement $pending): array
     {
         $custodian = $document->currentCustodian?->name ?? 'The custodian';
+
+        if ($document->statusEnum() === DocumentStatus::Completed) {
+            return [
+                'headline' => 'Completed',
+                'detail' => "{$custodian} is the final holder.",
+                'since' => $document->auditLogs->firstWhere('action', 'document_completed')?->occurred_at,
+            ];
+        }
 
         if ($pending) {
             return [

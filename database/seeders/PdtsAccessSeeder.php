@@ -79,5 +79,7 @@ class PdtsAccessSeeder extends Seeder
 
             $role->syncPermissions($rolePermissions);
         }
+
+        $this->call(MessengerRoleSeeder::class);
     }
 }

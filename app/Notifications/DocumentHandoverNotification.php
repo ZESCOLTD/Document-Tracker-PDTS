@@ -24,6 +24,12 @@ class DocumentHandoverNotification extends Notification
 
     public const CANCELLED = 'cancelled';
 
+    public const RETURNED = 'returned';
+
+    public const ASSIGNED = 'assigned';
+
+    public const PICKED_UP = 'picked_up';
+
     public function __construct(
         public DocumentMovement $movement,
         public string $event,
@@ -31,7 +37,7 @@ class DocumentHandoverNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        $defaults = in_array($this->event, [self::FORWARDED, self::ACKNOWLEDGED], true)
+        $defaults = in_array($this->event, [self::FORWARDED, self::ACKNOWLEDGED, self::RETURNED, self::ASSIGNED, self::PICKED_UP], true)
             ? ['database', 'mail']
             : ['database'];
 
@@ -61,6 +67,18 @@ class DocumentHandoverNotification extends Notification
         $history = route('movements.history', $document);
 
         [$title, $message, $url, $icon] = match ($this->event) {
+            self::ASSIGNED => [
+                'Document pickup assigned',
+                "Collect {$reference} from {$sender} and deliver it to {$recipient}.",
+                route('movements.deliveries'),
+                'fas fa-truck text-warning',
+            ],
+            self::PICKED_UP => [
+                'Document pickup confirmed',
+                ($this->movement->messenger?->name ?? 'The messenger')." collected {$reference} for delivery to {$recipient}.",
+                $history,
+                'fas fa-truck text-info',
+            ],
             self::FORWARDED => [
                 'Document awaiting your receipt',
                 "{$sender} forwarded {$reference}: {$document->title}. Acknowledge it once you physically have the paper.",
@@ -76,7 +94,7 @@ class DocumentHandoverNotification extends Notification
             self::DECLINED => [
                 'Document declined',
                 "{$recipient} declined {$reference}: {$this->movement->close_reason}",
-                route('movements.custody'),
+                $history,
                 'fas fa-times-circle text-danger',
             ],
             self::CANCELLED => [
@@ -84,6 +102,12 @@ class DocumentHandoverNotification extends Notification
                 "The handover of {$reference} was cancelled: {$this->movement->close_reason}",
                 $history,
                 'fas fa-ban text-secondary',
+            ],
+            self::RETURNED => [
+                'Document sent back for correction',
+                "{$sender} sent back {$reference} for correction (".($this->movement->returnCategoryLabel() ?? 'Other').'): '.$this->movement->remarks,
+                route('movements.pending'),
+                'fas fa-undo text-warning',
             ],
         };
 
@@ -116,7 +140,7 @@ class DocumentHandoverNotification extends Notification
             ->subject("PDTS | {$content['title']}: {$reference}")
             ->greeting('Hello '.($notifiable->name ?? 'there').',')
             ->line($content['message'])
-            ->action($this->event === self::FORWARDED ? 'Review handover' : 'View movement history', $content['url'])
+            ->action(in_array($this->event, [self::FORWARDED, self::RETURNED], true) ? 'Review handover' : 'View movement history', $content['url'])
             ->line('You can change how you receive notifications under Settings → Notification Preferences.');
     }
 }
