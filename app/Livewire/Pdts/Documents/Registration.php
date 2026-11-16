@@ -26,12 +26,19 @@ class Registration extends Component
     use WithFileUploads;
 
     public string $title = '';
+
     public string $subject = '';
+
     public string $description = '';
+
     public string $directorate_id = '';
+
     public string $department_id = '';
+
     public string $office_id = '';
+
     public string $document_type_id = '';
+
     public $attachment;
 
     public function mount(): void
@@ -141,16 +148,25 @@ class Registration extends Component
             'originating_office' => $office->name,
         ], auth()->user(), $this->attachment);
 
-        session()->flash('success', 'Document registered successfully. Write the tracking reference on the physical document.');
+        session()->flash('success', 'Document registered. Print the cover sheet and staple it to the front of the paper, so it can be scanned and tracked.');
 
         return redirect()->route('pdts.documents.show', $document);
     }
 
     public function render()
     {
+        return view('livewire.pdts.documents.registration', $this->formOptions())
+            ->layout('layouts.master', ['title' => 'Register Document']);
+    }
+
+    /**
+     * Choices for the form's dropdowns, shared with the internal document form.
+     */
+    protected function formOptions(): array
+    {
         $user = Auth::user();
 
-        return view('livewire.pdts.documents.registration', [
+        return [
             'documentTypes' => PdtsDocumentType::query()->where('is_active', true)->orderBy('name')->get(),
             'directorates' => PdtsDirectorate::query()->where('is_active', true)->orderBy('name')->get(),
             'departments' => $this->directorate_id === ''
@@ -172,6 +188,6 @@ class Registration extends Component
                 'departments' => $user->can('departments.manage'),
                 'offices' => $user->can('offices.manage'),
             ],
-        ])->layout('layouts.master', ['title' => 'Register Document']);
+        ];
     }
 }
