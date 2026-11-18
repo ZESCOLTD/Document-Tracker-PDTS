@@ -39,7 +39,8 @@ test('shows what is waiting for the recipient, oldest first, with overdue marked
             && $mine['waitingOverdue'] === 1
             && $mine['waitingList']->pluck('document.reference_number')->all() === ['OMTS-2026-0001', 'OMTS-2026-0002'])
         ->assertSee('2 documents are waiting for you to acknowledge.')
-        ->assertSeeInOrder(['OMTS-2026-0001', 'Overdue', 'OMTS-2026-0002']);
+        ->assertSeeInOrder(['OMTS-2026-0001', 'badge-overdue">Overdue'], false)
+        ->assertSee('OMTS-2026-0002');
 });
 
 test('shows the sender what they hold and what has not been received yet', function () {
@@ -76,7 +77,7 @@ test('employees do not see the organisation section', function () {
     Livewire::actingAs($this->sender)
         ->test(Dashboard::class)
         ->assertViewHas('board', fn (array $board) => $board['organisationWide'] === false)
-        ->assertDontSee('Across the organisation');
+        ->assertSee('data-scope="mine"', false);
 });
 
 test('employees only count documents they are involved with', function () {
@@ -114,9 +115,10 @@ test('management sees organisation totals and overdue handovers', function () {
                 && $byStatus['awaiting_receipt'] === 1
                 && $byStatus['registered'] === 1
                 && $board['overdueCount'] === 1
+                && $board['overdueTrend'] === 100
                 && $board['recent']->pluck('reference_number')->contains('OMTS-2026-0009');
         })
-        ->assertSee('Across the organisation')
+        ->assertSee('data-scope="organisation"', false)
         ->assertSee('OMTS-2026-0009');
 });
 
