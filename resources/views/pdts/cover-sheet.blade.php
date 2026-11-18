@@ -10,11 +10,11 @@
         * { box-sizing: border-box; }
         body { margin: 0; background: #e9ecef; font-family: Calibri, "Segoe UI", Arial, sans-serif; color: #1f2d3d; }
         .toolbar { max-width: 210mm; margin: 0 auto; padding: 12px 0; display: flex; gap: 8px; align-items: center; }
-        .toolbar a, .toolbar button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid #075B35; background: #fff; color: #075B35; text-decoration: none; cursor: pointer; }
-        .toolbar button.primary { background: #f59d33; border-color: #f59d33; color: #fff; font-weight: 600; }
+        .toolbar a, .toolbar button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid #093f42; background: #fff; color: #093f42; text-decoration: none; cursor: pointer; }
+        .toolbar button.primary { background: #ca7533; border-color: #ca7533; color: #fff; font-weight: 600; }
         .toolbar .hint { margin-left: auto; font-size: 13px; color: #6c757d; }
         .sheet { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #fff; padding: 16mm 18mm; display: flex; flex-direction: column; box-shadow: 0 2px 12px rgba(0, 0, 0, .12); }
-        .head { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #f59d33; padding-bottom: 10px; }
+        .head { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #ca7533; padding-bottom: 10px; }
         .head img { width: 26mm; }
         .head h1 { margin: 0; font-size: 22pt; letter-spacing: .02em; }
         .head .tag { margin-left: auto; text-align: right; font-weight: 700; color: #00873C; font-size: 11pt; }
@@ -26,7 +26,7 @@
         th { text-align: left; width: 34%; color: #555; font-weight: 600; padding: 3mm 3mm 3mm 0; vertical-align: top; border-bottom: 1px solid #e3e6ea; }
         td { padding: 3mm 0; border-bottom: 1px solid #e3e6ea; }
         .foot { margin-top: auto; padding-top: 6mm; border-top: 1px solid #ccd2d8; font-size: 11pt; color: #444; }
-        .foot strong { color: #075B35; }
+        .foot strong { color: #093f42; }
         .meta { font-size: 9pt; color: #888; margin-top: 2mm; }
         @media print {
             body { background: #fff; }

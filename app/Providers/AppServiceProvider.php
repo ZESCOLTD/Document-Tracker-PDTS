@@ -2,9 +2,15 @@
 
 namespace App\Providers;
 
+use App\Listeners\LogNotificationOutcome;
+use App\Services\Documents\WorkCounts;
 use Carbon\CarbonImmutable;
+use Illuminate\Notifications\Events\NotificationFailed;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -15,7 +21,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // One instance per request, so the sidebar badges query once per page.
+        $this->app->scoped(WorkCounts::class);
     }
 
     /**
@@ -24,19 +31,19 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if (! config('app.authorization_enabled')) {
-            \Illuminate\Support\Facades\Gate::before(fn ($user) => true);
+            Gate::before(fn ($user) => true);
         }
 
         $this->configureDefaults();
 
         // Phase 8: audit every notification dispatch outcome (sent/failed) to email_log.
-        \Illuminate\Support\Facades\Event::listen(
-            \Illuminate\Notifications\Events\NotificationSent::class,
-            [\App\Listeners\LogNotificationOutcome::class, 'sent'],
+        Event::listen(
+            NotificationSent::class,
+            [LogNotificationOutcome::class, 'sent'],
         );
-        \Illuminate\Support\Facades\Event::listen(
-            \Illuminate\Notifications\Events\NotificationFailed::class,
-            [\App\Listeners\LogNotificationOutcome::class, 'failed'],
+        Event::listen(
+            NotificationFailed::class,
+            [LogNotificationOutcome::class, 'failed'],
         );
     }
 

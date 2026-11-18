@@ -2,7 +2,7 @@
     .main-header.navbar { background: #fff; border-bottom: 1px solid {{ config('theme.color_sidebar') }}; box-shadow: 0 2px 8px rgba(0, 0, 0, .08); min-height: 3.5rem; }
     .main-header.navbar.no-accent-line { border-bottom: 0; }
     .main-header .navbar-nav > .nav-item > .nav-link { color: #343a40; border-radius: .375rem; transition: color .15s, background-color .15s; }
-    .main-header .navbar-nav > .nav-item > .nav-link:hover { color: {{ config('theme.color_sidebar') }}; background: rgba(7, 91, 53, .08); }
+    .main-header .navbar-nav > .nav-item > .nav-link:hover { color: {{ config('theme.color_sidebar') }}; background: rgba(9, 63, 66, .08); }
     .main-header .navbar-nav > .nav-item > a[data-widget="pushmenu"] { font-size: 1.1rem; }
     .main-header .app-name { font-weight: 700; color: {{ config('theme.color_sidebar') }}; }
     .main-header .user-menu > .nav-link { gap: .5rem; padding: .25rem .75rem; }

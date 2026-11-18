@@ -10,10 +10,10 @@
         .scan-journey li { position: relative; display: flex; gap: .75rem; padding-bottom: 1rem; }
         .scan-journey li:last-child { padding-bottom: 0; }
         .scan-journey li:not(:last-child)::before { content: ""; position: absolute; left: .4375rem; top: 1.125rem; bottom: 0; width: 2px; background: #e9ecef; }
-        .scan-journey .dot { width: 1rem; height: 1rem; border-radius: 50%; background: #075B35; flex-shrink: 0; margin-top: .25rem; }
+        .scan-journey .dot { width: 1rem; height: 1rem; border-radius: 50%; background: #093f42; flex-shrink: 0; margin-top: .25rem; }
         .scan-journey .type-awaiting_receipt .dot, .scan-journey .type-returned .dot { background: #17a2b8; }
         .scan-journey .type-declined .dot, .scan-journey .type-cancelled .dot { background: #dc3545; }
-        .scan-journey .type-picked_up .dot { background: #f59d33; }
+        .scan-journey .type-picked_up .dot { background: #ca7533; }
     </style>
 
     @if ($notice)
