@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ asset('assets-dashboard/plugins/fontawesome-free/css/all.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets-dashboard/dist/css/adminlte.min.css') }}">
     <style>
-        :root { --pdts-green: {{ config('theme.color_sidebar', '#075B35') }}; --pdts-orange: {{ config('theme.color_accent', '#f59d33') }}; }
+        :root { --pdts-green: {{ config('theme.color_sidebar', '#093f42') }}; --pdts-orange: {{ config('theme.color_accent', '#ca7533') }}; }
         body { background: #f2f4f3; font-size: 1rem; }
         .scan-bar { background: var(--pdts-green); color: #fff; }
         .scan-bar img { width: 34px; height: 34px; border-radius: 50%; background: #fff; padding: 2px; }
