@@ -561,7 +561,6 @@ test('a document registered through Registration can be forwarded and acknowledg
 
 test('statuses have plain-English labels for the tracking pages', function () {
     expect(array_map(fn (DocumentStatus $status) => $status->plainLabel(), DocumentStatus::cases()))->toBe([
-        'Draft, signed scan not uploaded',
         'Not sent',
         'Sent, not received yet',
         'Received',

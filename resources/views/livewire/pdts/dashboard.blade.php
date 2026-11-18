@@ -1,6 +1,5 @@
 @php
     $statusColours = [
-        'draft' => '#c5ccd4',
         'registered' => '#9aa5b1',
         'awaiting_receipt' => '#e8890c',
         'received' => '#2f6fdf',

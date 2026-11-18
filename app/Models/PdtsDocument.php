@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Illuminate\Support\Str;
 
 class PdtsDocument extends Model
 {
@@ -30,56 +29,11 @@ class PdtsDocument extends Model
         'current_custodian_id',
         'status',
         'registered_at',
-        'scan_token',
-        'origin',
-        'template_id',
-        'template_data',
     ];
 
     protected $casts = [
         'registered_at' => 'datetime',
-        'template_data' => 'array',
     ];
-
-    // Documents are external (received on paper) unless created from a template.
-    protected $attributes = [
-        'origin' => 'external',
-    ];
-
-    protected static function booted(): void
-    {
-        // Every document gets a random scan code for its QR link.
-        static::creating(function (PdtsDocument $document): void {
-            $document->scan_token ??= Str::random(40);
-        });
-    }
-
-    public function template(): BelongsTo
-    {
-        return $this->belongsTo(PdtsDocumentTemplate::class, 'template_id');
-    }
-
-    public function isDraft(): bool
-    {
-        return $this->status === DocumentStatus::Draft->value;
-    }
-
-    public function isInternal(): bool
-    {
-        return $this->origin === 'internal';
-    }
-
-    /**
-     * The link the QR code holds. It carries the random scan code, never the
-     * reference, and opens nothing until the person has logged in.
-     *
-     * It always uses the official address in APP_URL, not the address the
-     * author happened to open PDTS with, so printed codes work for everyone.
-     */
-    public function scanUrl(): string
-    {
-        return rtrim((string) config('app.url'), '/').route('pdts.scan', $this->scan_token, false);
-    }
 
     public function documentType(): BelongsTo
     {

@@ -8,8 +8,6 @@ enum DocumentStatus: string
 {
     use HasEnumHelpers;
 
-    // An internal document generated from a template, not yet printed, signed and scanned.
-    case Draft = 'draft';
     case Registered = 'registered';
     case AwaitingReceipt = 'awaiting_receipt';
     case Received = 'received';
@@ -18,7 +16,6 @@ enum DocumentStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::Draft => 'Draft',
             self::Registered => 'Registered',
             self::AwaitingReceipt => 'Awaiting Receipt',
             self::Received => 'Received / In Progress',
@@ -33,7 +30,6 @@ enum DocumentStatus: string
     public function plainLabel(): string
     {
         return match ($this) {
-            self::Draft => 'Draft, signed scan not uploaded',
             self::Registered => 'Not sent',
             self::AwaitingReceipt => 'Sent, not received yet',
             self::Received => 'Received',

@@ -4,15 +4,11 @@
         'completed' => ['#e8f5ec', '#218838', 'fa-check-double'],
         'received' => ['#e7f1ff', '#1f5fbf', 'fa-check-circle'],
         'awaiting_receipt' => ['#fff4e0', '#b86e00', 'fa-shipping-fast'],
-        'draft' => ['#f1f3f5', '#495057', 'fa-pencil-alt'],
         default => ['#eef0f3', '#4a5563', 'fa-file-alt'],
     };
     $pending = $document->pendingMovement;
 
     $activity = [
-        'draft_created' => ['Draft created from template', 'fa-file-word', '#6c757d'],
-        'reported_found' => ['Reported found by someone not involved', 'fa-flag', '#dc3545'],
-        'cover_sheet_printed' => ['Cover sheet printed', 'fa-qrcode', '#00873C'],
         'registered' => ['Registered', 'fa-plus', '#2f6fdf'],
         'handover_forwarded' => ['Forwarded', 'fa-share', '#e8890c'],
         'handover_acknowledged' => ['Received', 'fa-check', '#28a745'],
@@ -70,26 +66,6 @@
             </div>
 
             <div class="d-flex flex-wrap align-items-start" style="gap: .5rem;">
-                @if ($canDownloadWord)
-                    <a href="{{ route('pdts.documents.word', $document) }}" class="btn btn-sm {{ $document->isDraft() ? 'btn-primary' : 'btn-outline-secondary' }}">
-                        <i class="fas fa-file-word mr-1"></i>{{ $document->isDraft() ? 'Download Word file' : 'Word file' }}
-                    </a>
-                @endif
-                @if ($canPrintCoverSheet)
-                    <div class="btn-group">
-                        <a href="{{ route('pdts.documents.cover-sheet', $document) }}" target="_blank" rel="noopener" class="btn btn-sm {{ $document->isInternal() ? 'btn-outline-secondary' : 'btn-outline-success' }}">
-                            <i class="fas fa-qrcode mr-1"></i>{{ $coverSheetPrinted ? 'Reprint cover sheet' : 'Print cover sheet' }}
-                        </a>
-                        <button type="button" class="btn btn-sm {{ $document->isInternal() ? 'btn-outline-secondary' : 'btn-outline-success' }} dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <span class="sr-only">More cover sheet options</span>
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-right">
-                            <a class="dropdown-item" href="{{ route('pdts.documents.cover-sheet', [$document, 'confidential' => 1]) }}" target="_blank" rel="noopener">
-                                <i class="fas fa-user-secret fa-fw mr-2 text-muted"></i>Confidential version (QR and reference only)
-                            </a>
-                        </div>
-                    </div>
-                @endif
                 @if ($canForward)
                     <livewire:movements.forward-document :document="$document" :key="'forward-'.$document->id" />
                 @endif
@@ -100,29 +76,7 @@
         </div>
 
         {{-- Who is responsible right now --}}
-        @if ($document->isDraft())
-            <div class="custody" style="background: #f7f8fa; align-items: flex-start;">
-                <span class="custody-icon" style="background: #e9ecef; color: #495057;"><i class="fas fa-pencil-alt"></i></span>
-                <div class="flex-grow-1">
-                    <div class="font-weight-bold">Draft: not yet registered</div>
-                    <ol class="small text-muted pl-3 mb-2">
-                        <li>Download the Word file. The QR code and reference are already in its footer.</li>
-                        <li>Type the content, print it and sign it.</li>
-                        <li>Scan the signed paper and upload it here. The document can be sent once it is registered.</li>
-                    </ol>
-                    @if ($canUploadScan)
-                        <form wire:submit.prevent="uploadSignedScan" class="d-flex flex-wrap align-items-center" style="gap: .5rem;">
-                            <input type="file" class="form-control-file" style="max-width: 320px;" wire:model="signedScan" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff" aria-label="Scan of the signed document">
-                            <button type="submit" class="btn btn-sm btn-success" wire:loading.attr="disabled" wire:target="signedScan,uploadSignedScan">
-                                <i class="fas fa-upload mr-1"></i>Upload signed scan
-                            </button>
-                            <span wire:loading wire:target="signedScan" class="small text-muted">Preparing upload...</span>
-                        </form>
-                        @error('signedScan') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
-                    @endif
-                </div>
-            </div>
-        @elseif ($pending)
+        @if ($pending)
             <div class="custody" style="background: #fff8ec;">
                 <span class="custody-icon" style="background: #ffe7c2; color: #b86e00;"><i class="fas fa-shipping-fast"></i></span>
                 <div>
@@ -243,9 +197,6 @@
                                     @endif
                                     @if (in_array($event->action, ['handover_forwarded', 'handover_returned']) && $to) to {{ $to }} @endif
                                     <span class="text-muted">by {{ $event->actor?->name ?? 'Former user' }}</span>
-                                    @if (($event->details['via'] ?? null) === 'qr_without_login')
-                                        <span class="badge badge-warning ml-1" title="Confirmed from a scanned QR code by someone who was not logged in">confirmed by QR without login</span>
-                                    @endif
                                 </div>
                                 @if ($note)
                                     <div class="note">{{ in_array($event->action, ['handover_declined', 'handover_cancelled', 'handover_returned']) ? 'Reason: ' : '' }}{{ $note }}</div>

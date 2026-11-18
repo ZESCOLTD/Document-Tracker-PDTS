@@ -51,36 +51,11 @@ Route::post('/register/verify', function (Request $request, CreateNewUser $creat
         ]);
     }
 })->name('register.verify');
-// Where a printed QR code lands: a phone page with the action that fits the
-// person scanning. Login is controlled by pdts.scan_requires_login (see
-// ScanPageAccess). Unknown codes get 404.
-Route::get('/s/{token}', \App\Livewire\Pdts\ScanPage::class)
-    ->where('token', '[A-Za-z0-9]{20,64}')
-    ->middleware(\App\Http\Middleware\ScanPageAccess::class)
-    ->name('pdts.scan');
-
-// Log out from a scan page and return to the same document. Outside the auth
-// group so a phone whose session already expired still lands on the login page.
-Route::post('/s/{token}/logout', \App\Http\Controllers\ScanLogoutController::class)
-    ->where('token', '[A-Za-z0-9]{20,64}')
-    ->name('pdts.scan.logout');
-
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', Dashboard::class)->name('dashboard');
     Route::get('/documents/register', PdtsDocumentRegistration::class)
         ->middleware('can:documents.register')
         ->name('pdts.documents.register');
-    Route::get('/documents/internal/create', \App\Livewire\Pdts\Documents\InternalDocument::class)
-        ->middleware('can:documents.register')
-        ->name('pdts.documents.internal.create');
-    // Access follows the author and custody, so the controller checks it.
-    Route::get('/documents/{document}/word', \App\Http\Controllers\InternalDocumentWordController::class)
-        ->whereNumber('document')
-        ->name('pdts.documents.word');
-    // The A4 QR cover sheet stapled to a paper document. Registrar or holder only.
-    Route::get('/documents/{document}/cover-sheet', \App\Http\Controllers\CoverSheetController::class)
-        ->whereNumber('document')
-        ->name('pdts.documents.cover-sheet');
     Route::get('/documents', PdtsDocumentIndex::class)
         ->middleware('can:documents.view')
         ->name('pdts.documents.index');
@@ -114,13 +89,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/organization/document-types', \App\Livewire\Pdts\Organization\DocumentTypes::class)
         ->middleware('can:document_types.manage')
         ->name('pdts.organization.document-types');
-    Route::get('/organization/document-templates', \App\Livewire\Pdts\Organization\DocumentTemplates::class)
-        ->middleware('can:document_types.manage')
-        ->name('pdts.organization.document-templates');
-    Route::get('/organization/document-templates/{template}/download', \App\Http\Controllers\DocumentTemplateDownloadController::class)
-        ->whereNumber('template')
-        ->middleware('can:document_types.manage')
-        ->name('pdts.organization.document-templates.download');
     Route::get('/notifications', Index::class)->name('notifications.index');
     Route::get('/settings/notifications', NotificationPreferences::class)->name('settings.notifications');
     Route::get('/admin/email-log', EmailLogIndex::class)->name('admin.email_log');
