@@ -1,5 +1,37 @@
-<aside class="main-sidebar sidebar-dark-primary elevation-4"
-       style="background: linear-gradient(120deg, #00452B 0%, #075B35 100%)">
+<style>
+    /* Sidebar colours: deep teal, white icons and headings, a lighter teal pill for the active item. */
+    .main-sidebar.pdts-sidebar { background: linear-gradient(180deg, #093f42 0%, #072f32 100%) !important; }
+    .pdts-sidebar .nav-sidebar .nav-icon { color: #fff !important; }
+    .pdts-sidebar .nav-sidebar .nav-header {
+        color: #fff !important; font-weight: 600; font-size: .78rem; letter-spacing: .06em;
+        border-top: 1px solid #1e5e61; margin: .5rem .5rem 0; padding: .875rem .5rem .375rem;
+    }
+    /* No line above the first heading (straight after Dashboard), as in the design. */
+    .pdts-sidebar .nav-sidebar > .nav-item:first-child + .nav-header,
+    .pdts-sidebar .nav-sidebar > .nav-header:first-child { border-top: 0; }
+    .pdts-sidebar .nav-sidebar .nav-link { border-radius: .5rem; position: relative; display: flex; align-items: center; }
+    /* Labels sit beside their icon; a long one wraps to a second line, still beside the icon. */
+    .pdts-sidebar .nav-sidebar .nav-link > p {
+        flex: 1 1 auto; min-width: 0; margin: 0; font-size: .9375rem; line-height: 1.3; white-space: normal;
+    }
+    /* Room on the right for the count bubble. */
+    .pdts-sidebar .nav-sidebar .nav-link:has(.pdts-count) > p { padding-right: 2rem; }
+    .pdts-sidebar .nav-sidebar .nav-link > .nav-icon { flex-shrink: 0; }
+    .pdts-sidebar .nav-sidebar .nav-link:hover:not(.active) { background-color: rgba(255, 255, 255, .07) !important; }
+    /* Count bubble, e.g. Pending Acknowledgements 5. */
+    .pdts-sidebar .nav-sidebar .pdts-count {
+        position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
+        min-width: 1.375rem; height: 1.375rem; padding: 0 .375rem; border-radius: 999px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: {{ config('theme.color_accent') }}; color: #fff; font-size: .75rem; font-weight: 700; line-height: 1;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, .25); font-variant-numeric: tabular-nums;
+    }
+    .sidebar-collapse .pdts-sidebar:not(:hover) .pdts-count { right: .25rem; top: .35rem; transform: none; min-width: 1rem; height: 1rem; font-size: .625rem; }
+    .pdts-sidebar .nav-sidebar .nav-link.active {
+        background-color: #218381 !important; color: #fff !important; box-shadow: 0 2px 6px rgba(0, 0, 0, .2);
+    }
+</style>
+<aside class="main-sidebar pdts-sidebar sidebar-dark-primary elevation-4">
     <a href="{{ route('dashboard') }}" class="brand-link" style="background: {{ config('theme.color_accent') }}">
         <img src="{{ asset('assets-dashboard/dist/img/logo/zesco_logo.png') }}"
              alt="Logo"

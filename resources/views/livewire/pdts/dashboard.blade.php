@@ -1,7 +1,7 @@
 @php
     // One colour and label per status, shared by the donut, its legend and the table badges.
     $statusColours = [
-        'registered' => '#11675f',
+        'registered' => '#093f42',
         'awaiting_receipt' => '#d9813a',
         'received' => '#2f6fdf',
         'completed' => '#4caf50',
@@ -58,20 +58,20 @@
            Everything below the banner uses Poppins, which the layout loads in real weights. */
         .pdts-dash > :not(.hero) { font-family: 'Poppins', sans-serif; color: var(--ink); }
         .pdts-dash .dash-card { background: #fff; border-radius: .75rem; box-shadow: 0 1px 3px rgba(16, 24, 40, .06), 0 4px 16px rgba(16, 24, 40, .08); }
-        .pdts-dash .tone-teal   { --tone: #1a7f74; --tone-deep: #0e5f57; }
+        .pdts-dash .tone-teal   { --tone: #0f5257; --tone-deep: #093f42; }
         .pdts-dash .tone-orange { --tone: #d9813a; --tone-deep: #b8672a; }
         .pdts-dash .tone-red    { --tone: #ec5353; --tone-deep: #cf3a3a; }
         .pdts-dash .tone-green  { --tone: #47ad62; --tone-deep: #33914d; }
         .pdts-dash .tone-blue   { --tone: #3b82e0; --tone-deep: #2563c4; }
 
         /* Welcome banner (unchanged) */
-        .pdts-dash .hero { background: linear-gradient(120deg, #00452B 0%, #075B35 100%); color: #fff; border-radius: .5rem; padding: 1.25rem 1.5rem; position: relative; overflow: hidden; }
-        .pdts-dash .hero::after { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(243, 156, 18, .35), rgba(243, 156, 18, 0) 70%); }
+        .pdts-dash .hero { background: linear-gradient(120deg, #093f42 0%, #062e30 100%); color: #fff; border-radius: .5rem; padding: 1.25rem 1.5rem; position: relative; overflow: hidden; }
+        .pdts-dash .hero::after { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(202, 117, 51, .35), rgba(202, 117, 51, 0) 70%); }
         .pdts-dash .hero h3 { color: #fff; }
         .pdts-dash .hero .hero-sub { color: rgba(255, 255, 255, .78); }
         .pdts-dash .hero .hero-date { color: rgba(255, 255, 255, .65); position: relative; z-index: 1; }
-        .pdts-dash .hero .hero-cta { position: relative; z-index: 1; background: #f39c12; border-color: #f39c12; color: #fff; font-weight: 600; }
-        .pdts-dash .hero .hero-cta:hover { background: #e08e0b; border-color: #e08e0b; }
+        .pdts-dash .hero .hero-cta { position: relative; z-index: 1; background: #ca7533; border-color: #ca7533; color: #fff; font-weight: 600; }
+        .pdts-dash .hero .hero-cta:hover { background: #b0642a; border-color: #b0642a; }
 
         /* KPI cards: five across */
         /* All five on one line from tablet width up; they only stack on small screens. */
@@ -102,7 +102,7 @@
         /* Panels */
         .pdts-dash .panel { padding: .875rem 1rem; height: 100%; }
         .pdts-dash .panel-title { font-size: .9375rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: .5rem; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-        .pdts-dash .panel-title .fas { color: #1a7f74; font-size: .9375rem; flex-shrink: 0; }
+        .pdts-dash .panel-title .fas { color: #093f42; font-size: .9375rem; flex-shrink: 0; }
         .pdts-dash .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; gap: 1rem; }
 
         /* Donut with legend on the right */
@@ -159,13 +159,13 @@
         .pdts-dash .recent-table .ref .far { color: #374151; margin-right: .5rem; font-size: .9375rem; }
         .pdts-dash .status-badge { display: inline-block; white-space: nowrap; vertical-align: middle; text-align: center; padding: .15rem .5rem; border-radius: .375rem; font-size: .75rem; font-weight: 500; border: 1px solid transparent; }
         .pdts-dash .badge-draft     { background: #f1f3f5; color: #5b6673; border-color: #dde2e7; }
-        .pdts-dash .badge-registered{ background: #e3f3f0; color: #0e5f57; border-color: #b9e0d9; }
+        .pdts-dash .badge-registered{ background: #e3f3f0; color: #093f42; border-color: #b9e0d9; }
         .pdts-dash .badge-pending   { background: #fdf1d9; color: #a35d12; border-color: #f6d9a3; }
         .pdts-dash .badge-received  { background: #e3eefd; color: #1f5fc0; border-color: #bcd5f8; }
         .pdts-dash .badge-completed { background: #e2f5e6; color: #2a8a43; border-color: #b7e2c1; }
         .pdts-dash .badge-overdue   { background: #fde6e6; color: #c62828; border-color: #f6bcbc; }
         .pdts-dash .row-action { color: var(--ink); padding: 0 .375rem; background: none; border: 0; line-height: 1; }
-        .pdts-dash .row-action:hover { color: #1a7f74; }
+        .pdts-dash .row-action:hover { color: #093f42; }
         .pdts-dash .view-all { color: #d9813a; font-weight: 500; font-size: .8125rem; white-space: nowrap; }
         .pdts-dash .view-all:hover { color: #b8672a; text-decoration: none; }
         .pdts-dash .empty { padding: 1.5rem .25rem; color: var(--muted); }
@@ -177,7 +177,7 @@
         .pdts-dash .qa .fas { font-size: 1.5rem; }
         .pdts-dash .qa:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(16, 24, 40, .15); text-decoration: none; }
         .pdts-dash .qa-orange { background: linear-gradient(135deg, #d98a4a, #c87332); color: #fff; }
-        .pdts-dash .qa-teal   { background: linear-gradient(135deg, #1f8378, #12675e); color: #fff; }
+        .pdts-dash .qa-teal   { background: linear-gradient(135deg, #0f5257, #093f42); color: #fff; }
         .pdts-dash .qa-soft   { background: #e5eeef; color: var(--ink); }
         .pdts-dash .qa-soft .fas { color: #1f2937; }
         .pdts-dash .qa-orange:hover, .pdts-dash .qa-teal:hover { color: #fff; }
@@ -402,8 +402,8 @@
             tooltip: { shared: true, borderRadius: 8 },
             plotOptions: { areaspline: { lineWidth: 2, marker: { symbol: 'circle', radius: 4, lineWidth: 1.5, fillColor: '#fff', lineColor: null } } },
             series: [
-                { name: 'Registered', data: trend.registered, color: '#1a7f74',
-                  fillColor: { linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 }, stops: [[0, 'rgba(26,127,116,.22)'], [1, 'rgba(26,127,116,.02)']] } },
+                { name: 'Registered', data: trend.registered, color: '#093f42',
+                  fillColor: { linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 }, stops: [[0, 'rgba(9,63,66,.22)'], [1, 'rgba(9,63,66,.02)']] } },
                 { name: 'Completed', data: trend.completed, color: '#d9813a',
                   fillColor: { linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 }, stops: [[0, 'rgba(217,129,58,.22)'], [1, 'rgba(217,129,58,.02)']] } },
             ],
