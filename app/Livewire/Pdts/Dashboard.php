@@ -120,6 +120,21 @@ class Dashboard extends Component
             ->where('forwarded_at', '<', $to)
             ->count();
 
+        // Handovers that were (or still are) not acknowledged within the deadline,
+        // grouped by when they were sent, to compare the two 30-day periods.
+        $overdueAfterDays = (int) config('pdts.overdue_after_days');
+        $handovers = DocumentMovement::query()
+            ->when(! $organisationWide, fn (Builder $query) => $query->where(fn (Builder $query) => $query
+                ->where('sender_id', $user->id)
+                ->orWhere('recipient_id', $user->id)))
+            ->where('forwarded_at', '>=', $prior30)
+            ->get(['forwarded_at', 'acknowledged_at', 'closed_at']);
+        $lateBetween = fn ($from, $to) => $handovers
+            ->filter(fn (DocumentMovement $movement) => $movement->forwarded_at->gte($from)
+                && $movement->forwarded_at->lt($to)
+                && ($movement->acknowledged_at ?? $movement->closed_at ?? $now)->gt($movement->forwarded_at->copy()->addDays($overdueAfterDays)))
+            ->count();
+
         $overdue = DocumentMovement::query()
             ->where('status', MovementStatus::AwaitingReceipt->value)
             ->where('forwarded_at', '<=', $cutoff)
@@ -140,12 +155,13 @@ class Dashboard extends Component
                 $forwardedBetween('sender_id', $prior30, $last30),
             ),
             'overdueCount' => $organisationWide ? $overdue->count() : $mine['waitingOverdue'] + $mine['sentOverdue'],
+            'overdueTrend' => $this->trend($lateBetween($last30, $now), $lateBetween($prior30, $last30)),
             'completed' => $countOf(DocumentStatus::Completed),
             'completedTrend' => $this->trend($completedBetween($last30, $now), $completedBetween($prior30, $last30)),
             'workflow' => [
                 ['label' => 'Registered', 'total' => $countOf(DocumentStatus::Registered)],
-                ['label' => 'Sent, awaiting receipt', 'total' => $countOf(DocumentStatus::AwaitingReceipt)],
-                ['label' => 'With receiver', 'total' => $countOf(DocumentStatus::Received)],
+                ['label' => 'With Sender', 'total' => $countOf(DocumentStatus::AwaitingReceipt)],
+                ['label' => 'With Receiver', 'total' => $countOf(DocumentStatus::Received)],
                 ['label' => 'Completed', 'total' => $countOf(DocumentStatus::Completed)],
             ],
             'trendChart' => $this->movementTrend($documents),
@@ -211,12 +227,12 @@ class Dashboard extends Component
 
     /**
      * Change between the last 30 days and the 30 days before, as a whole
-     * percentage. Null when the earlier period had nothing to compare against.
+     * percentage. Growth from nothing counts as +100%.
      */
-    private function trend(int $current, int $previous): ?int
+    private function trend(int $current, int $previous): int
     {
         if ($previous === 0) {
-            return null;
+            return $current > 0 ? 100 : 0;
         }
 
         return (int) round(($current - $previous) / $previous * 100);
