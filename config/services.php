@@ -41,4 +41,14 @@ return [
         'timeout' => (int) env('AI_SERVICE_TIMEOUT', 180),
     ],
 
+    // SMS. "log" writes messages to the log file instead of sending them, until
+    // ICT provides an SMS gateway. "http" posts to that gateway's address.
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+        'sender' => env('SMS_SENDER', 'ZESCO PDTS'),
+        'url' => env('SMS_API_URL'),
+        'key' => env('SMS_API_KEY'),
+        'timeout' => (int) env('SMS_TIMEOUT', 10),
+    ],
+
 ];

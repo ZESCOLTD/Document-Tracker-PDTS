@@ -118,9 +118,12 @@ class CustodyService
         return $movement;
     }
 
-    public function confirmPickup(DocumentMovement $movement, User $user): DocumentMovement
+    /**
+     * @param  array<string, mixed>  $context  extra history details, e.g. how it was confirmed
+     */
+    public function confirmPickup(DocumentMovement $movement, User $user, array $context = []): DocumentMovement
     {
-        $movement = DB::transaction(function () use ($movement, $user) {
+        $movement = DB::transaction(function () use ($movement, $user, $context) {
             [$document, $locked] = $this->lockPending($movement);
 
             if ((int) $locked->messenger_id !== (int) $user->getKey()
@@ -133,7 +136,7 @@ class CustodyService
             }
 
             $locked->update(['picked_up_at' => now()]);
-            $this->audit($document, $user, 'handover_picked_up', $locked);
+            $this->audit($document, $user, 'handover_picked_up', $locked, $context);
 
             return $locked;
         });
@@ -143,9 +146,12 @@ class CustodyService
         return $movement;
     }
 
-    public function acknowledge(DocumentMovement $movement, User $user): DocumentMovement
+    /**
+     * @param  array<string, mixed>  $context  extra history details, e.g. how it was confirmed
+     */
+    public function acknowledge(DocumentMovement $movement, User $user, array $context = []): DocumentMovement
     {
-        $movement = DB::transaction(function () use ($movement, $user) {
+        $movement = DB::transaction(function () use ($movement, $user, $context) {
             [$document, $locked] = $this->lockPending($movement);
 
             if (! $user->can('documents.acknowledge')) {
@@ -180,6 +186,7 @@ class CustodyService
             $this->audit($document, $user, 'handover_acknowledged', $locked, [
                 'actual_custodian_id' => $user->getKey(),
                 'acknowledged_on_behalf_of' => $isDelegate ? $locked->recipient_id : null,
+                ...$context,
             ]);
 
             return $locked;
@@ -355,6 +362,10 @@ class CustodyService
             return 'This document already has a handover awaiting receipt.';
         }
 
+        if ($document->statusEnum() === DocumentStatus::Draft) {
+            return 'Upload the signed scan before sending this document.';
+        }
+
         if (! in_array($document->statusEnum(), [DocumentStatus::Registered, DocumentStatus::Received], true)) {
             return 'A '.strtolower($document->statusEnum()->label()).' document cannot be forwarded.';
         }
@@ -387,6 +398,7 @@ class CustodyService
         $userId = $user->getKey();
 
         return (int) $document->current_custodian_id === (int) $userId
+            || (int) $document->registered_by === (int) $userId
             || $user->can('audit.view')
             || $document->movements()
                 ->where(fn (Builder $query) => $query
@@ -458,6 +470,15 @@ class CustodyService
         }
 
         return [$document, $locked];
+    }
+
+    /**
+     * Whether the user is the recipient of this pending handover, or an active
+     * delegate acting for them. Pickup and permission rules are checked on acknowledge.
+     */
+    public function isRecipientOrDelegate(DocumentMovement $movement, User $user): bool
+    {
+        return $this->isRecipient($movement, $user) || $this->isActiveDelegate($movement, $user);
     }
 
     private function isRecipient(DocumentMovement $movement, User $user): bool
