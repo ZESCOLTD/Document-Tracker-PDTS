@@ -4,11 +4,9 @@ use App\Livewire\Pdts\Documents\Show;
 use App\Models\PdtsDocument;
 use App\Models\PdtsDocumentType;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 
-uses(RefreshDatabase::class);
 
 beforeEach(function () {
     Permission::firstOrCreate(['name' => 'documents.view', 'guard_name' => 'web']);

@@ -6,12 +6,10 @@ use App\Models\PdtsDocumentType;
 use App\Models\User;
 use App\Notifications\DocumentReportedNotification;
 use App\Services\Documents\CustodyService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 
-uses(RefreshDatabase::class);
 
 beforeEach(function () {
     Notification::fake();
@@ -192,13 +190,14 @@ test('logging out from the scan page comes back to the same document after the n
         ->assertRedirect($url);
     $this->assertGuest();
 
-    $this->get($url)->assertOk()->assertDontSee('Log in')->assertDontSee(route('login'), false);
+    $this->get($url)->assertRedirect(route('login'));
 
     $this->post(route('login.store'), ['man_no' => $this->recipient->man_no, 'password' => 'password'])
         ->assertRedirect($url);
 });
 
-test('without a login, anyone with the code can track the document', function () {
+test('with the login setting off, anyone with the code can track the document', function () {
+    config(['pdts.scan_requires_login' => false]);
     forwardWithMessenger();
 
     $this->get($this->document->scanUrl())
@@ -226,6 +225,7 @@ test('without a login, scanning is view-only and cannot confirm', function () {
 });
 
 test('after a document is received, a scan shows who has it', function () {
+    config(['pdts.scan_requires_login' => false]);
     $custody = app(CustodyService::class);
     $custody->acknowledge($custody->forward($this->document, $this->sender, $this->recipient), $this->recipient);
 
@@ -246,8 +246,7 @@ test('without a login, other actions are refused', function () {
     expect($this->document->refresh()->status)->toBe('awaiting_receipt');
 });
 
-test('turning the login setting back on requires a login again', function () {
-    config(['pdts.scan_requires_login' => true]);
+test('by default a scan requires a login', function () {
     app(CustodyService::class)->forward($this->document, $this->sender, $this->recipient);
 
     $this->get($this->document->scanUrl())->assertRedirect(route('login'));
@@ -261,4 +260,46 @@ test('turning the login setting back on requires a login again', function () {
 
 test('people involved cannot file a found report', function () {
     scanFor($this->sender)->call('reportFound')->assertForbidden();
+});
+
+test('on a phone: scan, log in, confirm, log out, and the next person lands on the same document without scanning again', function () {
+    $this->withHeader('User-Agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1');
+    app(CustodyService::class)->forward($this->document, $this->sender, $this->recipient, 'Please review');
+    $url = $this->document->scanUrl();
+
+    // 1. Benson scans the code: not logged in, so the normal login opens.
+    $this->get($url)->assertRedirect(route('login'));
+    $this->get(route('login'))->assertOk();
+
+    // 2. He logs in and comes straight back to the document, with Confirm receipt.
+    $this->post(route('login.store'), ['man_no' => $this->recipient->man_no, 'password' => 'password'])
+        ->assertRedirect($url);
+    $this->get($url)->assertOk()->assertSee('OMTS-2026-0101')->assertSee('Confirm receipt');
+
+    // 3. He confirms receipt.
+    scanFor($this->recipient)->call('acknowledge')->assertHasNoErrors();
+    expect($this->document->refresh()->status)->toBe('received')
+        ->and((int) $this->document->current_custodian_id)->toBe($this->recipient->id);
+
+    // 4. He taps Log out on the scan page: back to the login, remembering the document.
+    $this->post(route('pdts.scan.logout', $this->document->scan_token))->assertRedirect($url);
+    $this->assertGuest();
+    $this->get($url)->assertRedirect(route('login'));
+    $this->get(route('login'))->assertOk();
+
+    // 5. The next person logs in on the same phone and lands on the same document, no second scan.
+    $this->post(route('login.store'), ['man_no' => $this->outsider->man_no, 'password' => 'password'])
+        ->assertRedirect($url);
+    $this->get($url)->assertOk()
+        ->assertSee('This document is tracked in PDTS and is not addressed to you.')
+        ->assertSee('Report found / wrong delivery');
+});
+
+test('opening the home address after an unfinished scan logs in to the dashboard, not the document', function () {
+    $this->get($this->document->scanUrl())->assertRedirect(route('login'));
+
+    $this->get('/')->assertRedirect(route('login'));
+
+    $this->post(route('login.store'), ['man_no' => $this->recipient->man_no, 'password' => 'password'])
+        ->assertRedirect(route('dashboard'));
 });

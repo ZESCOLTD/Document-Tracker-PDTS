@@ -1,7 +1,9 @@
 @php
+    use App\Http\Controllers\CoverSheetController;
+
     // One colour and label per status, shared by the donut, its legend and the table badges.
     $statusColours = [
-    'draft' => '#c5ccd4',
+        'draft' => '#5ec4b6',
         'registered' => '#093f42',
         'awaiting_receipt' => '#d9813a',
         'received' => '#2f6fdf',
@@ -15,7 +17,7 @@
         'completed' => 'Completed',
     ];
     $badges = [
-        'draft' => ['Draft', 'badge-registered'],
+        'draft' => ['Draft', 'badge-draft'],
         'registered' => ['Registered', 'badge-registered'],
         'awaiting_receipt' => ['Pending Ack.', 'badge-pending'],
         'received' => ['With Receiver', 'badge-received'],
@@ -43,6 +45,7 @@
     $quickActions = array_values(array_filter([
         $mine['canRegister'] ? ['Register Document', 'fa-file-medical', route('pdts.documents.register'), 'qa-orange'] : null,
         $mine['canRegister'] ? ['Track Document', 'fa-map-marker-alt', route('movements.track'), 'qa-teal'] : null,
+        $mine['canRegister'] ? ['Internal Document', 'fa-layer-group', route('pdts.documents.internal.create'), 'qa-soft'] : null,
         $mine['canViewDocuments'] ? ['Reports', 'fa-signal', route('pdts.documents.index'), 'qa-soft'] : null,
         ! $mine['canRegister'] && $mine['canAcknowledge'] ? ['Pending Acknowledgements', 'fa-inbox', route('movements.pending'), 'qa-orange'] : null,
         ! $mine['canRegister'] && $mine['canForward'] ? ['My Custody', 'fa-folder-open', route('movements.custody'), 'qa-teal'] : null,
@@ -352,6 +355,9 @@
                                                     <a class="dropdown-item" href="{{ route('movements.history', $document) }}"><i class="fas fa-route mr-2"></i>Movement history</a>
                                                     @if ($mine['canViewDocuments'])
                                                         <a class="dropdown-item" href="{{ route('pdts.documents.show', $document) }}"><i class="fas fa-info-circle mr-2"></i>Document details</a>
+                                                    @endif
+                                                    @if (! $document->isDraft() && CoverSheetController::canPrint($document, auth()->user()))
+                                                        <a class="dropdown-item" href="{{ route('pdts.documents.cover-sheet', $document) }}" target="_blank"><i class="fas fa-qrcode mr-2"></i>Cover sheet</a>
                                                     @endif
                                                 </div>
                                             </span>

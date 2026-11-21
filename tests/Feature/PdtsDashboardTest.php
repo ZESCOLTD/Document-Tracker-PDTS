@@ -5,10 +5,8 @@ use App\Models\PdtsDocument;
 use App\Models\User;
 use App\Services\Documents\CustodyService;
 use Database\Seeders\PdtsAccessSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
-uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->seed(PdtsAccessSeeder::class);

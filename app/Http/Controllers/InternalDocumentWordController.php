@@ -21,12 +21,12 @@ class InternalDocumentWordController extends Controller
             (int) $document->registered_by === (int) $user->getKey() || $custody->canViewHistory($document, $user),
             403,
         );
-        abort_unless($document->isInternal() && $document->template_id, 404, 'This document has no Word file.');
+        abort_unless($document->isInternal() && $document->template_id, 404, 'This document has no template file.');
 
         $file = $internal->wordFile($document->loadMissing(['template', 'registrar']));
 
         return response($file['contents'], 200, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'Content-Type' => $file['mime'],
             'Content-Disposition' => 'attachment; filename="'.addcslashes($file['filename'], '"\\').'"',
             'Cache-Control' => 'no-store',
         ]);

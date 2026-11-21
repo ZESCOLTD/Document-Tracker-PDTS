@@ -13,7 +13,7 @@ class DocumentTemplateDownloadController extends Controller
 {
     public function __invoke(PdtsDocumentTemplate $template): StreamedResponse
     {
-        abort_if($template->is_builtin || ! $template->storage_path, 404);
+        abort_if(! $template->storage_path, 404);
         abort_unless(Storage::disk('private')->exists($template->storage_path), 404);
 
         return Storage::disk('private')->download(
