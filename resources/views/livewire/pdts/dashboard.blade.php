@@ -1,18 +1,21 @@
 @php
     // One colour and label per status, shared by the donut, its legend and the table badges.
     $statusColours = [
+    'draft' => '#c5ccd4',
         'registered' => '#093f42',
         'awaiting_receipt' => '#d9813a',
         'received' => '#2f6fdf',
         'completed' => '#4caf50',
     ];
     $statusLabels = [
+        'draft' => 'Draft',
         'registered' => 'Registered',
         'awaiting_receipt' => 'Awaiting Receipt',
         'received' => 'In Progress',
         'completed' => 'Completed',
     ];
     $badges = [
+        'draft' => ['Draft', 'badge-registered'],
         'registered' => ['Registered', 'badge-registered'],
         'awaiting_receipt' => ['Pending Ack.', 'badge-pending'],
         'received' => ['With Receiver', 'badge-received'],

@@ -62,6 +62,11 @@
                                 <i class="nav-icon fas fa-file-signature"></i><p>Register Document</p>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.documents.internal.create') }}" class="nav-link {{ request()->routeIs('pdts.documents.internal.create') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-file-word"></i><p>New Internal Document</p>
+                            </a>
+                        </li>
                     @endcan
                     @can('documents.view')
                         <li class="nav-item">
@@ -150,6 +155,11 @@
                                 <li class="nav-item">
                                     <a href="{{ route('pdts.organization.document-types') }}" class="nav-link {{ request()->routeIs('pdts.organization.document-types') ? 'active' : '' }}">
                                         <i class="nav-icon fas fa-tags"></i><p>Document Types</p>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="{{ route('pdts.organization.document-templates') }}" class="nav-link {{ request()->routeIs('pdts.organization.document-templates') ? 'active' : '' }}">
+                                        <i class="nav-icon fas fa-file-word"></i><p>Document Templates</p>
                                     </a>
                                 </li>
                             @endcan
