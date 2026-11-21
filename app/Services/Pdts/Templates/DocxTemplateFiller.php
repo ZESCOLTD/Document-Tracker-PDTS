@@ -24,7 +24,7 @@ class DocxTemplateFiller
         $found = [];
 
         $this->eachPart($docxPath, function (string $name, string $xml) use (&$found): ?string {
-            preg_match_all('/\$\{([a-z_]+)\}/', $this->joinSplitPlaceholders($xml), $matches);
+            preg_match_all('/\$\{([a-z][a-z0-9_]*)\}/', $this->joinSplitPlaceholders($xml), $matches);
             $found = [...$found, ...$matches[1]];
 
             return null;
@@ -35,28 +35,26 @@ class DocxTemplateFiller
 
     /**
      * @param  array<string, string>  $values
+     * @param  float  $qrSizeMm  printed size of the QR code
      */
-    public function fill(string $docxPath, array $values, string $qrPng): string
+    public function fill(string $docxPath, array $values, string $qrPng, float $qrSizeMm = 20.0): string
     {
-        $work = tempnam(sys_get_temp_dir(), 'pdts-tpl');
-        copy($docxPath, $work);
-
-        $zip = new ZipArchive;
-        if ($zip->open($work) !== true) {
-            @unlink($work);
+        $qrInches = max(10.0, $qrSizeMm) / 25.4;
+        try {
+            $files = DocxPackage::read($docxPath);
+        } catch (RuntimeException) {
             throw new RuntimeException('The template is not a valid Word file.');
         }
 
         $pictureId = 9000;
         $usedQr = false;
 
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $name = $zip->getNameIndex($i);
+        foreach (array_keys($files) as $name) {
             if (! preg_match(self::PART_PATTERN, $name)) {
                 continue;
             }
 
-            $xml = $this->joinSplitPlaceholders($zip->getFromIndex($i));
+            $xml = $this->joinSplitPlaceholders($files[$name]);
 
             foreach ($values as $key => $value) {
                 $xml = str_replace('${'.$key.'}', $this->inlineText($value), $xml);
@@ -66,29 +64,27 @@ class DocxTemplateFiller
                 $usedQr = true;
                 $relationshipId = 'rIdPdtsQr';
                 $xml = $this->ensureDrawingNamespaces($xml);
+                // The innermost run holding ${qr_code}: never one that contains
+                // another run, such as the floating box the QR code sits in.
                 $xml = preg_replace_callback(
-                    '#<w:r(?:\s[^>]*)?>(?:(?!</w:r>).)*?\$\{qr_code\}(?:(?!</w:r>).)*?</w:r>#s',
-                    function () use ($relationshipId, &$pictureId) {
-                        return WordXml::picture($relationshipId, $pictureId++, 'PDTS QR code', 0.78, 0.78);
+                    '#<w:r(?:\s[^>]*)?>(?:(?!</w:r>|<w:r[\s>]).)*?\$\{qr_code\}(?:(?!</w:r>).)*?</w:r>#s',
+                    function () use ($relationshipId, &$pictureId, $qrInches) {
+                        return WordXml::picture($relationshipId, $pictureId++, 'PDTS QR code', $qrInches, $qrInches);
                     },
                     $xml,
                 );
-                $this->addImageRelationship($zip, $name, $relationshipId);
+                $this->addImageRelationship($files, $name, $relationshipId);
             }
 
-            $zip->addFromString($name, $xml);
+            $files[$name] = $xml;
         }
 
         if ($usedQr) {
-            $zip->addFromString('word/media/pdts-qr.png', $qrPng);
-            $this->ensurePngContentType($zip);
+            $files['word/media/pdts-qr.png'] = $qrPng;
+            $this->ensurePngContentType($files);
         }
 
-        $zip->close();
-        $bytes = file_get_contents($work);
-        @unlink($work);
-
-        return $bytes;
+        return DocxPackage::write($files);
     }
 
     /**
@@ -138,10 +134,13 @@ class DocxTemplateFiller
         }, $xml, 1);
     }
 
-    private function addImageRelationship(ZipArchive $zip, string $partName, string $relationshipId): void
+    /**
+     * @param  array<string, string>  $files
+     */
+    private function addImageRelationship(array &$files, string $partName, string $relationshipId): void
     {
         $relsName = 'word/_rels/'.basename($partName).'.rels';
-        $rels = $zip->getFromName($relsName);
+        $rels = $files[$relsName] ?? false;
 
         if ($rels === false) {
             $rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -154,17 +153,19 @@ class DocxTemplateFiller
                 '<Relationship Id="'.$relationshipId.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/pdts-qr.png"/></Relationships>',
                 $rels,
             );
-            $zip->addFromString($relsName, $rels);
+            $files[$relsName] = $rels;
         }
     }
 
-    private function ensurePngContentType(ZipArchive $zip): void
+    /**
+     * @param  array<string, string>  $files
+     */
+    private function ensurePngContentType(array &$files): void
     {
-        $types = $zip->getFromName('[Content_Types].xml');
+        $types = $files['[Content_Types].xml'] ?? null;
 
-        if ($types !== false && ! preg_match('/Extension="png"/i', $types)) {
-            $types = str_replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>', $types);
-            $zip->addFromString('[Content_Types].xml', $types);
+        if ($types !== null && ! preg_match('/Extension="png"/i', $types)) {
+            $files['[Content_Types].xml'] = str_replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>', $types);
         }
     }
 

@@ -214,23 +214,12 @@
             </section>
         @endif
 
-        <form wire:submit="sendHistorySms" class="scan-card">
-            <label for="scan-sms" class="font-weight-bold mb-1"><i class="fas fa-sms mr-1 text-muted"></i>Send this history to my phone</label>
-            <div class="d-flex" style="gap: .5rem;">
-                <input id="scan-sms" type="tel" inputmode="tel" autocomplete="tel" class="form-control @error('smsPhone') is-invalid @enderror"
-                       wire:model="smsPhone" placeholder="0977 123 456" maxlength="20" required>
-                <button type="submit" class="btn btn-success" style="white-space: nowrap;" wire:loading.attr="disabled" wire:target="sendHistorySms">Send SMS</button>
-            </div>
-            @error('smsPhone') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
-            <div class="small text-muted mt-1">You'll get the reference, where it is now and its recent journey.</div>
-        </form>
-
         <section class="scan-card scan-links py-1" @if ($guest) style="display: none;" @endif>
             @if ($document->primaryAttachment)
                 <a href="{{ route('movements.scan', $document) }}" target="_blank" rel="noopener">View scanned copy <i class="fas fa-chevron-right text-muted"></i></a>
             @endif
             @if ($fullPageUrl)
-                <a href="{{ $fullPageUrl }}">Open in the full app <span class="small text-muted">(for computers) <i class="fas fa-chevron-right"></i></span></a>
+                <a href="{{ $fullPageUrl }}">Open in the full app <i class="fas fa-chevron-right text-muted"></i></a>
             @endif
         </section>
     @endif

@@ -45,7 +45,9 @@ return [
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
+            // Give up quickly when the mail server cannot be reached, so a
+            // forward or acknowledgement never hangs waiting for it.
+            'timeout' => (int) env('MAIL_TIMEOUT', 5),
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
             'auth_mode' => null,//added to disable ssl issue
             'verify_peer' => false,//added to disable ssl issue

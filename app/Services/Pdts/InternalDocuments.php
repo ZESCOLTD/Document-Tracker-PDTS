@@ -8,8 +8,8 @@ use App\Models\PdtsDocumentTemplate;
 use App\Models\PdtsOffice;
 use App\Models\User;
 use App\Services\Pdts\Templates\DocxTemplateFiller;
-use App\Services\Pdts\Templates\MemoDocxBuilder;
 use App\Services\Pdts\Templates\QrCodePng;
+use App\Services\Pdts\Templates\TemplateSetup;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -28,12 +28,11 @@ class InternalDocuments
     public function __construct(
         private readonly PdtsReferenceNumberGenerator $references,
         private readonly QrCodePng $qr,
-        private readonly MemoDocxBuilder $memo,
         private readonly DocxTemplateFiller $filler,
     ) {}
 
     /**
-     * @param  array{title: string, subject: string, description?: ?string, document_type_id: int, to: string, from: string, cc?: ?string, office_reference?: ?string, date: string}  $data
+     * @param  array{title: string, subject: string, description?: ?string, document_type_id: int, to: string, from: string, cc?: ?string, office_reference?: ?string, date: string, custom?: array<string, string>}  $data
      */
     public function createDraft(array $data, User $author, PdtsDocumentTemplate $template, PdtsOffice $office): PdtsDocument
     {
@@ -63,6 +62,8 @@ class InternalDocuments
                     'cc' => $data['cc'] ?? '',
                     'office_reference' => $data['office_reference'] ?? '',
                     'date' => $data['date'],
+                    // The template's own placeholders, e.g. ['amount' => 'K 12,000'].
+                    'custom' => $data['custom'] ?? [],
                 ],
             ]);
 
@@ -82,32 +83,45 @@ class InternalDocuments
     }
 
     /**
-     * The Word file for an internal document, generated afresh each time.
+     * The document's file, generated afresh each time: a filled Word file, or
+     * for a PDF template the PDF with this document's QR code on it.
      *
-     * @return array{filename: string, contents: string}
+     * @return array{filename: string, contents: string, mime: string}
      */
     public function wordFile(PdtsDocument $document): array
     {
         $template = $document->template;
 
-        if (! $document->isInternal() || ! $template) {
+        if (! $document->isInternal() || ! $template?->storage_path) {
             throw new RuntimeException('This document was not created from a template.');
         }
 
-        $values = $this->placeholderValues($document);
-        $qrPng = $this->qr->make($document->scanUrl());
+        $subject = Str::of($document->subject)->replaceMatches('/[^A-Za-z0-9 ._-]+/', '')->squish()->limit(60, '');
+        $basename = trim($document->reference_number.' '.$subject);
 
-        if ($template->is_builtin) {
-            $contents = $this->memo->build($values, $qrPng);
-        } else {
-            $path = Storage::disk('private')->path($template->storage_path);
-            $contents = $this->filler->fill($path, $values, $qrPng);
+        if ($template->isPdf()) {
+            return [
+                'filename' => $basename.'.pdf',
+                'contents' => app(TemplateSetup::class)->stamp(
+                    Storage::disk('private')->get($template->storage_path),
+                    $template->placement(),
+                    $document->scanUrl(),
+                    $document->reference_number,
+                ),
+                'mime' => 'application/pdf',
+            ];
         }
 
-        $subject = Str::of($document->subject)->replaceMatches('/[^A-Za-z0-9 ._-]+/', '')->squish()->limit(60, '');
+        $contents = $this->filler->fill(
+            Storage::disk('private')->path($template->storage_path),
+            $this->placeholderValues($document),
+            $this->qr->make($document->scanUrl()),
+            $template->qr_size_mm ?? 20.0,
+        );
 
         return [
-            'filename' => trim($document->reference_number.' '.$subject).'.docx',
+            'filename' => $basename.'.docx',
+            'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'contents' => $contents,
         ];
     }
@@ -178,7 +192,16 @@ class InternalDocuments
         $data = $document->template_data ?? [];
         $date = isset($data['date']) ? Carbon::parse($data['date'])->format('j F Y') : '';
 
-        return [
+        // The template's own fields first, so they can never replace what PDTS fills itself.
+        $custom = [];
+        foreach ((array) ($data['custom'] ?? []) as $name => $value) {
+            if (is_string($name) && ! array_key_exists($name, PdtsDocumentTemplate::PLACEHOLDERS)) {
+                // Left empty: keep a line to write on by hand.
+                $custom[$name] = trim((string) $value) !== '' ? (string) $value : '____________________';
+            }
+        }
+
+        return $custom + [
             'reference' => $document->reference_number,
             'title' => (string) $document->title,
             'subject' => (string) $document->subject,

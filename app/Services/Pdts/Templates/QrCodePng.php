@@ -3,6 +3,7 @@
 namespace App\Services\Pdts\Templates;
 
 use BaconQrCode\Common\ErrorCorrectionLevel;
+use BaconQrCode\Encoder\ByteMatrix;
 use BaconQrCode\Encoder\Encoder;
 
 /**
@@ -15,10 +16,37 @@ class QrCodePng
      * @param  int  $scale  pixels per QR module
      * @param  int  $margin  quiet zone in modules (the standard asks for 4)
      */
-    public function make(string $text, int $scale = 10, int $margin = 4): string
+    /**
+     * The QR code's modules, row by row from the top: true = dark. Used to
+     * draw the code directly onto PDF pages.
+     *
+     * @return list<list<bool>>
+     */
+    public function modules(string $text): array
+    {
+        $matrix = $this->encode($text);
+        $size = $matrix->getWidth();
+        $rows = [];
+        for ($y = 0; $y < $size; $y++) {
+            $row = [];
+            for ($x = 0; $x < $size; $x++) {
+                $row[] = $matrix->get($x, $y) === 1;
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    private function encode(string $text): ByteMatrix
     {
         // Plain byte mode without an ECI prefix: some phone scanners misread the prefix.
-        $matrix = Encoder::encode($text, ErrorCorrectionLevel::M(), Encoder::DEFAULT_BYTE_MODE_ENCODING, null, false)->getMatrix();
+        return Encoder::encode($text, ErrorCorrectionLevel::M(), Encoder::DEFAULT_BYTE_MODE_ENCODING, null, false)->getMatrix();
+    }
+
+    public function make(string $text, int $scale = 10, int $margin = 4): string
+    {
+        $matrix = $this->encode($text);
         $modules = $matrix->getWidth();
         $size = ($modules + 2 * $margin) * $scale;
 

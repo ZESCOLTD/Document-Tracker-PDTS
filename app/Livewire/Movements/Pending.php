@@ -2,11 +2,10 @@
 
 namespace App\Livewire\Movements;
 
-use App\Enums\MovementStatus;
 use App\Models\DocumentMovement;
-use App\Models\PdtsUserDelegation;
 use App\Services\Documents\CustodyException;
 use App\Services\Documents\CustodyService;
+use App\Services\Documents\WorkCounts;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -68,17 +67,8 @@ class Pending extends Component
 
     public function render()
     {
-        $delegatedPrincipalIds = PdtsUserDelegation::query()
-            ->activeAt()
-            ->where('delegate_user_id', Auth::id())
-            ->select('principal_user_id');
-
-        $query = DocumentMovement::query()
-            ->where(fn ($query) => $query
-                ->where('recipient_id', Auth::id())
-                ->orWhereIn('recipient_id', $delegatedPrincipalIds))
-            ->where('status', MovementStatus::AwaitingReceipt->value)
-            ->whereHas('document');
+        // Shared with the sidebar badge so the count and this list always agree.
+        $query = app(WorkCounts::class)->pendingAcknowledgementsQuery(Auth::user());
 
         return view('livewire.movements.pending', [
             'movements' => (clone $query)

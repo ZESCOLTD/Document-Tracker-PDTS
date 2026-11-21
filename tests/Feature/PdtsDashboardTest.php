@@ -5,7 +5,10 @@ use App\Models\PdtsDocument;
 use App\Models\User;
 use App\Services\Documents\CustodyService;
 use Database\Seeders\PdtsAccessSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->seed(PdtsAccessSeeder::class);
@@ -36,7 +39,8 @@ test('shows what is waiting for the recipient, oldest first, with overdue marked
             && $mine['waitingOverdue'] === 1
             && $mine['waitingList']->pluck('document.reference_number')->all() === ['OMTS-2026-0001', 'OMTS-2026-0002'])
         ->assertSee('2 documents are waiting for you to acknowledge.')
-        ->assertSeeInOrder(['OMTS-2026-0001', 'Overdue', 'OMTS-2026-0002']);
+        ->assertSeeInOrder(['OMTS-2026-0001', 'badge-overdue">Overdue'], false)
+        ->assertSee('OMTS-2026-0002');
 });
 
 test('shows the sender what they hold and what has not been received yet', function () {
@@ -72,8 +76,21 @@ test('a received document leaves the waiting and sent lists', function () {
 test('employees do not see the organisation section', function () {
     Livewire::actingAs($this->sender)
         ->test(Dashboard::class)
-        ->assertViewHas('organisation', null)
-        ->assertDontSee('Across the organisation');
+        ->assertViewHas('board', fn (array $board) => $board['organisationWide'] === false)
+        ->assertSee('data-scope="mine"', false);
+});
+
+test('employees only count documents they are involved with', function () {
+    $mine = dashboardDocument($this->sender);
+    dashboardDocument($this->recipient);
+    $this->custody->forward($mine, $this->sender, $this->recipient);
+
+    Livewire::actingAs($this->sender)
+        ->test(Dashboard::class)
+        ->assertViewHas('board', fn (array $board) => $board['total'] === 1
+            && $board['open'] === 1
+            && $board['recent']->pluck('id')->all() === [$mine->id]
+            && array_sum($board['trendChart']['registered']) === 1);
 });
 
 test('management sees organisation totals and overdue handovers', function () {
@@ -89,18 +106,19 @@ test('management sees organisation totals and overdue handovers', function () {
 
     Livewire::actingAs($auditor)
         ->test(Dashboard::class)
-        ->assertViewHas('organisation', function (array $org) {
-            $byStatus = $org['byStatus']->mapWithKeys(fn ($row) => [$row['status']->value => $row['total']]);
+        ->assertViewHas('board', function (array $board) {
+            $byStatus = $board['byStatus']->mapWithKeys(fn ($row) => [$row['status']->value => $row['total']]);
 
-            return $org['total'] === 2
-                && $org['open'] === 2
+            return $board['organisationWide']
+                && $board['total'] === 2
+                && $board['open'] === 2
                 && $byStatus['awaiting_receipt'] === 1
                 && $byStatus['registered'] === 1
-                && $org['declined30'] === 1
-                && $org['overdueCount'] === 1
-                && $org['overdueList']->first()->document->reference_number === 'OMTS-2026-0009';
+                && $board['overdueCount'] === 1
+                && $board['overdueTrend'] === 100
+                && $board['recent']->pluck('reference_number')->contains('OMTS-2026-0009');
         })
-        ->assertSee('Across the organisation')
+        ->assertSee('data-scope="organisation"', false)
         ->assertSee('OMTS-2026-0009');
 });
 

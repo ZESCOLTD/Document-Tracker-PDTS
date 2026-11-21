@@ -21,46 +21,7 @@ use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
-/**
- * A minimal Word file. Placeholders can be split across runs, as Word does.
- */
-function pdtsTestDocx(string $bodyRuns, string $footerRuns = '<w:r><w:t>${qr_code}</w:t></w:r>'): string
-{
-    $path = tempnam(sys_get_temp_dir(), 'pdts-test-docx');
-    $zip = new ZipArchive;
-    $zip->open($path, ZipArchive::OVERWRITE);
-    $w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
-    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-        .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
-        .'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-        .'<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>');
-    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
-    $zip->addFromString('word/document.xml', '<?xml version="1.0" encoding="UTF-8"?><w:document '.$w.'><w:body><w:p>'.$bodyRuns.'</w:p>'
-        .'<w:sectPr><w:footerReference w:type="default" r:id="rIdF"/></w:sectPr></w:body></w:document>');
-    $zip->addFromString('word/_rels/document.xml.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        .'<Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>');
-    $zip->addFromString('word/footer1.xml', '<?xml version="1.0" encoding="UTF-8"?><w:ftr '.$w.'><w:p>'.$footerRuns.'</w:p></w:ftr>');
-    $zip->close();
-
-    $bytes = file_get_contents($path);
-    unlink($path);
-
-    return $bytes;
-}
-
-function pdtsZipPart(string $bytes, string $name): string|false
-{
-    $path = tempnam(sys_get_temp_dir(), 'pdts-test-read');
-    file_put_contents($path, $bytes);
-    $zip = new ZipArchive;
-    $zip->open($path);
-    $part = $zip->getFromName($name);
-    $zip->close();
-    unlink($path);
-
-    return $part;
-}
+require_once __DIR__.'/../Support/docx.php';
 
 beforeEach(function () {
     Storage::fake('private');
@@ -78,13 +39,13 @@ beforeEach(function () {
     $this->department = PdtsDepartment::create(['name' => 'Finance', 'directorate_id' => $this->directorate->id, 'is_active' => true]);
     $this->office = PdtsOffice::create(['name' => 'Finance Head Office', 'department_id' => $this->department->id, 'is_active' => true]);
 
-    $this->builtin = PdtsDocumentTemplate::where('is_builtin', true)->sole();
+    $this->memo = pdtsMemoTemplate($this->memoType->id);
 });
 
 function pdtsCreateDraft(): PdtsDocument
 {
     Livewire::test(InternalDocument::class)
-        ->set('template_id', (string) test()->builtin->id)
+        ->set('template_id', (string) test()->memo->id)
         ->set('document_type_id', (string) test()->memoType->id)
         ->set('to', 'Director - Corporate Affairs')
         ->set('from', 'Director - Investments & Finance')
@@ -126,12 +87,12 @@ test('every document gets a random scan code', function () {
         ->and($document->origin)->toBe('external');
 });
 
-test('an author creates an internal draft from the built-in memorandum', function () {
+test('an author creates an internal draft from an uploaded memorandum template', function () {
     $document = pdtsCreateDraft();
 
     expect($document->status)->toBe('draft')
         ->and($document->origin)->toBe('internal')
-        ->and($document->template_id)->toBe($this->builtin->id)
+        ->and($document->template_id)->toBe($this->memo->id)
         ->and($document->title)->toBe('Revision of petty cash limit')
         ->and($document->template_data)->toMatchArray([
             'to' => 'Director - Corporate Affairs',
@@ -157,7 +118,7 @@ test('the Word file carries the details, and the QR code and reference in its fo
         ->toContain('DIF/DDAS/054/2025')
         ->toContain('Revision of petty cash limit')
         ->toContain('Managing Director</w:t><w:br/><w:t xml:space="preserve">All Directors')
-        ->and($footer)->toContain($document->reference_number)->toContain('r:embed="rIdQr"')
+        ->and($footer)->toContain($document->reference_number)->toContain('r:embed="rIdPdtsQr"')
         ->and(pdtsZipPart($bytes, 'word/media/pdts-qr.png'))->toStartWith("\x89PNG");
 });
 
@@ -226,13 +187,13 @@ test('an uploaded template is filled even when Word split a placeholder across r
         ->and(pdtsZipPart($filled, 'word/media/pdts-qr.png'))->toStartWith("\x89PNG");
 });
 
-test('administrators upload templates, which must contain the QR placeholder', function () {
+test('administrators upload templates, and a file that is not Word is refused', function () {
     $this->author->givePermissionTo('document_types.manage');
 
     Livewire::test(DocumentTemplates::class)
         ->call('openCreate')
         ->set('name', 'Internal Minute')
-        ->set('file', UploadedFile::fake()->createWithContent('minute.docx', pdtsTestDocx('<w:r><w:t>${subject}</w:t></w:r>', '<w:r><w:t>No code</w:t></w:r>')))
+        ->set('file', UploadedFile::fake()->createWithContent('minute.docx', 'not a word file'))
         ->call('save')
         ->assertHasErrors('file');
 
@@ -245,9 +206,9 @@ test('administrators upload templates, which must contain the QR placeholder', f
         ->assertHasNoErrors();
 
     $template = PdtsDocumentTemplate::where('name', 'Internal Minute')->sole();
-    expect($template->is_builtin)->toBeFalse()
+    expect($template->is_active)->toBeFalse() // until its QR code is placed
         ->and($template->document_type_id)->toBe($this->memoType->id);
-    Storage::disk('private')->assertExists($template->storage_path);
+    Storage::disk('private')->assertExists($template->original_path);
 });
 
 test('the templates page needs the document types permission', function () {
