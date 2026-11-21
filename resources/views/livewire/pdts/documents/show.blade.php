@@ -72,7 +72,10 @@
             <div class="d-flex flex-wrap align-items-start" style="gap: .5rem;">
                 @if ($canDownloadWord)
                     <a href="{{ route('pdts.documents.word', $document) }}" class="btn btn-sm {{ $document->isDraft() ? 'btn-primary' : 'btn-outline-secondary' }}">
-                        <i class="fas fa-file-word mr-1"></i>{{ $document->isDraft() ? 'Download Word file' : 'Word file' }}
+                        @php
+                            $isPdfTemplate = $document->template?->isPdf();
+                        @endphp
+                        <i class="fas {{ $isPdfTemplate ? 'fa-file-pdf' : 'fa-file-word' }} mr-1"></i>{{ $document->isDraft() ? ($isPdfTemplate ? 'Download PDF' : 'Download Word file') : ($isPdfTemplate ? 'PDF' : 'Word file') }}
                     </a>
                 @endif
                 @if ($canPrintCoverSheet)
@@ -106,8 +109,8 @@
                 <div class="flex-grow-1">
                     <div class="font-weight-bold">Draft: not yet registered</div>
                     <ol class="small text-muted pl-3 mb-2">
-                        <li>Download the Word file. The QR code and reference are already in its footer.</li>
-                        <li>Type the content, print it and sign it.</li>
+                        <li>{{ $document->template?->isPdf() ? 'Download the PDF. The QR code is already on it.' : 'Download the Word file. The QR code and reference are already on it.' }}</li>
+                        <li>{{ $document->template?->isPdf() ? 'Print it, fill it in and sign it.' : 'Type the content, print it and sign it.' }}</li>
                         <li>Scan the signed paper and upload it here. The document can be sent once it is registered.</li>
                     </ol>
                     @if ($canUploadScan)

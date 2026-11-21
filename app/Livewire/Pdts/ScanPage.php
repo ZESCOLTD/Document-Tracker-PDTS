@@ -10,11 +10,7 @@ use App\Services\Documents\CustodyException;
 use App\Services\Documents\CustodyService;
 use App\Services\Documents\DocumentTracker;
 use App\Services\Documents\FoundDocumentReports;
-use App\Services\Sms\DocumentHistorySms;
-use App\Services\Sms\PhoneNumber;
-use App\Services\Sms\SmsSender;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
@@ -45,9 +41,6 @@ class ScanPage extends Component
 
     public string $note = '';
 
-    // Mobile number to send the history to by SMS.
-    public string $smsPhone = '';
-
     public ?string $notice = null;
 
     public ?string $errorMessage = null;
@@ -64,57 +57,6 @@ class ScanPage extends Component
         if (! Auth::check()) {
             session()->put('url.intended', $document->scanUrl());
         }
-
-        $this->smsPhone = (string) (Auth::user()?->mobile_no ?? '');
-    }
-
-    /**
-     * Sends the document's whereabouts and journey to the scanner's phone.
-     * Limited per device and per number so it cannot be used to flood phones.
-     */
-    public function sendHistorySms(SmsSender $sms, DocumentHistorySms $history): void
-    {
-        $this->resetValidation('smsPhone');
-        $document = $this->document();
-        $user = Auth::user();
-
-        // Only people who can see the tracking may have it sent.
-        abort_if($user && ! $this->isInvolved($document, $user), 403);
-
-        $number = PhoneNumber::normalize($this->smsPhone);
-        if (! $number) {
-            $this->addError('smsPhone', 'Enter a Zambian mobile number, for example 0977 123 456.');
-
-            return;
-        }
-
-        $deviceKey = 'pdts-scan-sms:device:'.request()->ip();
-        $numberKey = 'pdts-scan-sms:number:'.$number;
-        if (RateLimiter::tooManyAttempts($deviceKey, 5) || RateLimiter::tooManyAttempts($numberKey, 3)) {
-            $this->addError('smsPhone', 'Too many messages sent. Please try again later.');
-
-            return;
-        }
-        RateLimiter::hit($deviceKey, 3600);
-        RateLimiter::hit($numberKey, 3600);
-
-        $sent = $sms->send($number, $history->for($document), [
-            'purpose' => 'scan_history',
-            'document_id' => $document->id,
-            'user_id' => $user?->id,
-            'ip' => request()->ip(),
-        ]);
-
-        if (! $sent) {
-            $this->errorMessage = 'The SMS could not be sent. Please try again later.';
-            $this->notice = null;
-
-            return;
-        }
-
-        $this->errorMessage = null;
-        $this->notice = 'History sent by SMS to '.PhoneNumber::masked($number).'.'
-            .(config('services.sms.driver') === 'log' ? ' (Test mode: the message was written to the log, not sent to a phone.)' : '');
     }
 
     public static function requiresLogin(): bool

@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             PdtsDocumentTypeSeeder::class,
             PdtsDirectorateSeeder::class,
             SuperAdministratorSeeder::class,
+            PdtsDocumentTemplateSeeder::class,
         ]);
     }
 }

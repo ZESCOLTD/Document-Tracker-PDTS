@@ -10,10 +10,10 @@
         .scan-journey li { position: relative; display: flex; gap: .75rem; padding-bottom: 1rem; }
         .scan-journey li:last-child { padding-bottom: 0; }
         .scan-journey li:not(:last-child)::before { content: ""; position: absolute; left: .4375rem; top: 1.125rem; bottom: 0; width: 2px; background: #e9ecef; }
-        .scan-journey .dot { width: 1rem; height: 1rem; border-radius: 50%; background: #093f42; flex-shrink: 0; margin-top: .25rem; }
+        .scan-journey .dot { width: 1rem; height: 1rem; border-radius: 50%; background: #075B35; flex-shrink: 0; margin-top: .25rem; }
         .scan-journey .type-awaiting_receipt .dot, .scan-journey .type-returned .dot { background: #17a2b8; }
         .scan-journey .type-declined .dot, .scan-journey .type-cancelled .dot { background: #dc3545; }
-        .scan-journey .type-picked_up .dot { background: #ca7533; }
+        .scan-journey .type-picked_up .dot { background: #f59d33; }
     </style>
 
     @if ($notice)
@@ -214,23 +214,12 @@
             </section>
         @endif
 
-        <form wire:submit="sendHistorySms" class="scan-card">
-            <label for="scan-sms" class="font-weight-bold mb-1"><i class="fas fa-sms mr-1 text-muted"></i>Send this history to my phone</label>
-            <div class="d-flex" style="gap: .5rem;">
-                <input id="scan-sms" type="tel" inputmode="tel" autocomplete="tel" class="form-control @error('smsPhone') is-invalid @enderror"
-                       wire:model="smsPhone" placeholder="0977 123 456" maxlength="20" required>
-                <button type="submit" class="btn btn-success" style="white-space: nowrap;" wire:loading.attr="disabled" wire:target="sendHistorySms">Send SMS</button>
-            </div>
-            @error('smsPhone') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
-            <div class="small text-muted mt-1">You'll get the reference, where it is now and its recent journey.</div>
-        </form>
-
         <section class="scan-card scan-links py-1" @if ($guest) style="display: none;" @endif>
             @if ($document->primaryAttachment)
                 <a href="{{ route('movements.scan', $document) }}" target="_blank" rel="noopener">View scanned copy <i class="fas fa-chevron-right text-muted"></i></a>
             @endif
             @if ($fullPageUrl)
-                <a href="{{ $fullPageUrl }}">Open in the full app <span class="small text-muted">(for computers) <i class="fas fa-chevron-right"></i></span></a>
+                <a href="{{ $fullPageUrl }}">Open in the full app <i class="fas fa-chevron-right text-muted"></i></a>
             @endif
         </section>
     @endif
