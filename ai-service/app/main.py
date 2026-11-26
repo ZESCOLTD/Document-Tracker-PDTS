@@ -24,10 +24,25 @@ MAX_IMAGE_PIXELS = 40_000_000
 RENDER_SCALE = 1.8
 ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 REFERENCE_PATTERN = re.compile(r"\b[A-Z]{2,8}-\d{4}-\d{3,}\b", re.IGNORECASE)
-DATE_PATTERN = re.compile(r"\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b")
-SUBJECT_PATTERN = re.compile(
-    r"(?i)\b(?:subject|re)\s*[:\-]\s*(.+?)(?=\s+(?:reference|date|from|to)\s*[:\-]|\r?\n|$)"
+LABELLED_REFERENCE_PATTERN = re.compile(
+    r"\b(?:ref(?:erence)?)(?:[ \t]*(?:no\.?|number))?[ \t]*[:\-][ \t]*"
+    r"([A-Z0-9][A-Z0-9&._-]*(?:[ \t]*/[ \t]*[A-Z0-9][A-Z0-9&._-]*)*)",
+    re.IGNORECASE,
 )
+DATE_PATTERN = re.compile(
+    r"(?<![\w/])(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|"
+    r"(?P<day>\d{1,2})(?:st|nd|rd|th)?[ \t]*"
+    r"(?P<month>Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+    r"\.?[ \t]*(?P<year>\d{4}))(?!\w)",
+    re.IGNORECASE,
+)
+SUBJECT_PATTERN = re.compile(
+    r"(?i)\b(?:subject|re)\s*[:\-]\s*(.+?)(?=\s+(?:ref(?:erence)?|date|from|to)\s*[:\-]|\r?\n|$)"
+)
+HEADER_PATTERN = re.compile(r"^(?:to|from|ref(?:erence)?(?:\s+(?:no\.?|number))?|date)\s*[:\-]", re.IGNORECASE)
+DATE_LABEL_PATTERN = re.compile(r"\b(?:document[ \t]+)?date[ \t]*[:\-][ \t]*", re.IGNORECASE)
+DOCUMENT_LABELS = {"ZESCO", "ZESCO LIMITED", "ZESCO LTD", "MEMORANDUM", "INTERNAL MEMORANDUM", "MEMO"}
 
 app = FastAPI(title="PDTS Document Intelligence", version="0.1.0")
 _ocr_engine = None
@@ -141,16 +156,100 @@ def extract_pdf(payload: bytes) -> list[PageResult]:
     return pages
 
 
-def make_suggestions(text: str) -> OcrSuggestions:
-    reference_match = REFERENCE_PATTERN.search(text)
+def suggest_subject(text: str) -> str | None:
     subject_match = SUBJECT_PATTERN.search(text)
-    first_line = next((line.strip() for line in text.splitlines() if line.strip()), None)
-    dates = list(dict.fromkeys(DATE_PATTERN.findall(text)))
+    if subject_match:
+        parts = [subject_match.group(1).strip()]
+        remaining = text[subject_match.end():].splitlines()
+    else:
+        lines = [line.strip() for line in text.splitlines() if line.strip()][:40]
+        header_positions = [index for index, line in enumerate(lines) if HEADER_PATTERN.match(line)]
+        start = header_positions[-1] + 1 if header_positions else 0
+        parts = []
+        remaining = []
+        for index in range(start, len(lines)):
+            line = lines[index]
+            if line.upper() in DOCUMENT_LABELS:
+                continue
+            if line.isupper() and len(line.split()) >= 3:
+                parts = [line]
+                remaining = lines[index + 1:]
+                break
+            if not line.isupper():
+                break
+
+    if not parts:
+        return None
+
+    for line in remaining:
+        line = line.strip()
+        if not line:
+            continue
+        if not line.isupper() or HEADER_PATTERN.match(line) or line in DOCUMENT_LABELS:
+            break
+        parts.append(line)
+
+    return " ".join(parts)[:255]
+
+
+def suggest_document_date(text: str) -> list[str]:
+    subject = suggest_subject(text)
+    header_lines = []
+    for line in text.splitlines()[:30]:
+        labelled_subject = SUBJECT_PATTERN.search(line)
+        if labelled_subject:
+            header_lines.append(line[:labelled_subject.start()].strip())
+            break
+        if subject and line.strip() and subject.startswith(line.strip()):
+            break
+        header_lines.append(line.strip())
+
+    labelled_dates = []
+    standalone_dates = []
+    has_date_label = False
+    for index, line in enumerate(header_lines):
+        label = DATE_LABEL_PATTERN.search(line)
+        if label:
+            prefix = line[:label.start()].strip()
+            if prefix and (
+                not re.search(r"\b(?:ref(?:erence)?|from|to)\s*[:\-]", prefix, re.IGNORECASE)
+                or re.search(r"\b(?:due|expiry|expiration|meeting|travel|delivery|return|closing|effective)\s*$", prefix, re.IGNORECASE)
+            ):
+                continue
+            has_date_label = True
+            value = line[label.end():].strip()
+            if not value and index + 1 < len(header_lines):
+                value = header_lines[index + 1]
+            value = re.split(r"\s+(?:ref(?:erence)?|from|to)\s*[:\-]", value, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+            match = DATE_PATTERN.fullmatch(value)
+            if not match:
+                return []
+            labelled_dates.append(match)
+        elif index < 12:
+            match = DATE_PATTERN.fullmatch(line)
+            if match:
+                standalone_dates.append(match)
+
+    candidates = labelled_dates if has_date_label else standalone_dates
+    dates = list(dict.fromkeys(
+        f"{match.group('day')} {match.group('month')} {match.group('year')}"
+        if match.group('month') else match.group(0)
+        for match in candidates
+    ))
+    return dates if len(dates) == 1 else []
+
+
+def make_suggestions(text: str) -> OcrSuggestions:
+    labelled_reference = LABELLED_REFERENCE_PATTERN.search(text)
+    reference_match = REFERENCE_PATTERN.search(text)
+    reference = reference_match.group(0) if reference_match else None
+    if labelled_reference and any(character.isdigit() for character in labelled_reference.group(1)):
+        reference = re.sub(r"\s*/\s*", "/", labelled_reference.group(1))
 
     return OcrSuggestions(
-        reference_number=reference_match.group(0) if reference_match else None,
-        dates=dates[:20],
-        suggested_subject=(subject_match.group(1).strip() if subject_match else first_line[:240] if first_line else None),
+        reference_number=reference,
+        dates=suggest_document_date(text),
+        suggested_subject=suggest_subject(text),
     )
 
 

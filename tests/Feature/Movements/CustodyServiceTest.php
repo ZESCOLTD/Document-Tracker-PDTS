@@ -576,18 +576,19 @@ describe('messenger', function () {
         $this->movement = $this->custody->forward($this->document, $this->sender, $this->recipient, null, $this->messenger);
     });
 
-    test('assignment and pickup keep the sender as custodian and notify participants', function () {
+    test('pickup transfers custody to the messenger and notifies the sender', function () {
         Notification::assertSentTo($this->messenger, DocumentHandoverNotification::class,
             fn ($notice) => $notice->event === DocumentHandoverNotification::ASSIGNED);
 
         $movement = $this->custody->confirmPickup($this->movement, $this->messenger);
 
         expect($movement->picked_up_at)->not->toBeNull()
-            ->and($this->document->fresh()->current_custodian_id)->toBe($this->sender->id)
+            ->and($this->document->fresh()->current_custodian_id)->toBe($this->messenger->id)
             ->and($this->custody->canViewHistory($this->document, $this->messenger))->toBeTrue();
 
-        Notification::assertSentTo([$this->sender, $this->recipient], DocumentHandoverNotification::class,
+        Notification::assertSentTo($this->sender, DocumentHandoverNotification::class,
             fn ($notice) => $notice->event === DocumentHandoverNotification::PICKED_UP);
+        Notification::assertNotSentTo($this->recipient, DocumentHandoverNotification::class);
     });
 
     test('only the assigned messenger can confirm pickup', function () {
@@ -610,6 +611,7 @@ describe('messenger', function () {
 
     test('receipt notifies the messenger and transfers custody to the recipient', function () {
         $this->custody->confirmPickup($this->movement, $this->messenger);
+        $this->custody->confirmDelivery($this->movement, $this->messenger);
         $this->custody->acknowledge($this->movement, $this->recipient);
 
         expect($this->document->fresh()->current_custodian_id)->toBe($this->recipient->id);

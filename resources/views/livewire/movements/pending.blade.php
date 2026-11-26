@@ -6,6 +6,8 @@
 
     @include('livewire.movements.partials.alerts')
 
+    @include('livewire.movements.partials.filter-cards')
+
     <div class="card elevation-2 border-0">
         <div class="card-body p-0 table-responsive">
             <table class="table table-hover mb-0">
@@ -30,7 +32,7 @@
                             <td>
                                 {{ $movement->sender->name }}
                                 @if ($movement->messenger_id)
-                                    <div class="small text-info">Messenger: {{ $movement->messenger?->name }}. {{ $movement->picked_up_at ? 'Picked up' : 'Awaiting pickup' }}</div>
+                                    <div class="small text-info">Messenger: {{ $movement->messenger?->name }}. Delivered {{ $movement->delivered_at?->format('d M Y H:i') }}</div>
                                 @endif
                                 @if((int) $movement->recipient_id !== (int) auth()->id())
                                     <div class="small text-info">For {{ $movement->recipient->name }}</div>
@@ -48,7 +50,7 @@
                                 @endif
                             </td>
                             <td class="text-right text-nowrap">
-                                <button type="button" class="btn btn-sm btn-success" wire:click="openAcknowledge({{ $movement->id }})" @disabled($movement->messenger_id && ! $movement->picked_up_at)>
+                                <button type="button" class="btn btn-sm btn-success" wire:click="openAcknowledge({{ $movement->id }})" @disabled($movement->messenger_id && ! $movement->delivered_at)>
                                     Acknowledge
                                 </button>
                                 @if((int) $movement->recipient_id === (int) auth()->id())
@@ -60,7 +62,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">Nothing is waiting for you.</td>
+                            <td colspan="8" class="text-center text-muted py-4">{{ $statusFilter === 'all' ? 'Nothing is waiting for you.' : 'No documents match this filter.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -101,7 +103,7 @@
                             </div>
                             <div class="modal-body">
                                 <p class="mb-2"><strong>{{ $dialogMovement->document->reference_number }}</strong>: {{ $dialogMovement->document->title }}</p>
-                                <p class="text-muted">{{ $dialogMovement->sender->name }} will remain the custodian.</p>
+                                <p class="text-muted">{{ $dialogMovement->messenger_id ? 'The messenger remains responsible and will return this document to '.$dialogMovement->sender->name.'.' : $dialogMovement->sender->name.' will remain the custodian.' }}</p>
                                 <label for="decline-reason">Reason</label>
                                 <textarea id="decline-reason" rows="3" maxlength="1000" wire:model="reason"
                                           class="form-control @error('reason') is-invalid @enderror"></textarea>

@@ -27,6 +27,7 @@ class DocumentMovement extends Model
         'recipient_id',
         'messenger_id',
         'picked_up_at',
+        'delivered_at',
         'sender_office',
         'recipient_office',
         'status',
@@ -47,6 +48,7 @@ class DocumentMovement extends Model
         'status' => MovementStatus::class,
         'forwarded_at' => 'datetime',
         'picked_up_at' => 'datetime',
+        'delivered_at' => 'datetime',
         'acknowledged_at' => 'datetime',
         'closed_at' => 'datetime',
     ];

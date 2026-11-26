@@ -7,7 +7,6 @@ use App\Services\Documents\CustodyService;
 use Database\Seeders\PdtsAccessSeeder;
 use Livewire\Livewire;
 
-
 beforeEach(function () {
     $this->seed(PdtsAccessSeeder::class);
     config(['pdts.overdue_after_days' => 3]);

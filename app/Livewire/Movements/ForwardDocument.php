@@ -94,7 +94,9 @@ class ForwardDocument extends Component
 
             $custody->forward($document, Auth::user(), $recipient, $this->remarks, $messenger);
 
-            $this->notice = "Forwarded to {$recipient->name}. You remain the custodian until they acknowledge.";
+            $this->notice = $messenger
+                ? "Pickup assigned to {$messenger->name} for delivery to {$recipient->name}. You remain the custodian until pickup is confirmed."
+                : "Forwarded to {$recipient->name}. You remain the custodian until they acknowledge.";
             $this->errorMessage = null;
             $this->closeForm();
             $this->dispatch('handover-changed');

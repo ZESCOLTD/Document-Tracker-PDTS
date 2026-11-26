@@ -30,6 +30,8 @@ class DocumentHandoverNotification extends Notification
 
     public const PICKED_UP = 'picked_up';
 
+    public const DELIVERED = 'delivered';
+
     public function __construct(
         public DocumentMovement $movement,
         public string $event,
@@ -37,7 +39,7 @@ class DocumentHandoverNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        $defaults = in_array($this->event, [self::FORWARDED, self::ACKNOWLEDGED, self::RETURNED, self::ASSIGNED, self::PICKED_UP], true)
+        $defaults = in_array($this->event, [self::FORWARDED, self::ACKNOWLEDGED, self::RETURNED, self::ASSIGNED, self::PICKED_UP, self::DELIVERED], true)
             ? ['database', 'mail']
             : ['database'];
 
@@ -84,6 +86,12 @@ class DocumentHandoverNotification extends Notification
                 "{$sender} forwarded {$reference}: {$document->title}. Acknowledge it once you physically have the paper.",
                 route('movements.pending'),
                 'fas fa-share text-warning',
+            ],
+            self::DELIVERED => [
+                'Document delivered for acknowledgement',
+                ($this->movement->messenger?->name ?? 'The messenger')." delivered {$reference}: {$document->title}. Acknowledge it only when you physically have the paper.",
+                route('movements.pending'),
+                'fas fa-inbox text-success',
             ],
             self::ACKNOWLEDGED => [
                 'Document receipt acknowledged',
@@ -140,7 +148,7 @@ class DocumentHandoverNotification extends Notification
             ->subject("PDTS | {$content['title']}: {$reference}")
             ->greeting('Hello '.($notifiable->name ?? 'there').',')
             ->line($content['message'])
-            ->action(in_array($this->event, [self::FORWARDED, self::RETURNED], true) ? 'Review handover' : 'View movement history', $content['url'])
+            ->action(in_array($this->event, [self::FORWARDED, self::RETURNED, self::DELIVERED], true) ? 'Review handover' : 'View movement history', $content['url'])
             ->line('You can change how you receive notifications under Settings → Notification Preferences.');
     }
 }

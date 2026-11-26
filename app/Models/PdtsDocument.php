@@ -19,6 +19,8 @@ class PdtsDocument extends Model
 
     protected $fillable = [
         'reference_number',
+        'document_reference',
+        'document_date',
         'title',
         'subject',
         'description',
@@ -39,6 +41,7 @@ class PdtsDocument extends Model
     protected $casts = [
         'registered_at' => 'datetime',
         'template_data' => 'array',
+        'document_date' => 'date:Y-m-d',
     ];
 
     // Documents are external (received on paper) unless created from a template.

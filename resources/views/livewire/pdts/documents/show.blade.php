@@ -21,6 +21,7 @@
         'handover_returned' => ['Sent back', 'fa-undo', '#e8890c'],
         'document_completed' => ['Completed', 'fa-check-double', '#218838'],
         'handover_picked_up' => ['Picked up', 'fa-truck', '#17a2b8'],
+        'handover_delivered' => ['Delivered', 'fa-inbox', '#17a2b8'],
     ];
 
     $fileIcon = fn ($attachment) => match (true) {
@@ -133,7 +134,7 @@
                     <div class="small text-muted">
                         Sent {{ $pending->forwarded_at?->diffForHumans() }}.
                         @if ($pending->messenger_id)
-                            Messenger: {{ $pending->messenger?->name }}. {{ $pending->picked_up_at ? 'Picked up.' : 'Awaiting pickup.' }}
+                            Messenger: {{ $pending->messenger?->name }}. {{ $pending->delivered_at ? 'Delivered; awaiting acknowledgement.' : ($pending->picked_up_at ? 'Picked up; not delivered.' : 'Awaiting pickup.') }}
                         @endif
                         {{ $document->currentCustodian?->name ?? 'The sender' }} stays responsible until it is acknowledged.
                     </div>
@@ -161,6 +162,8 @@
                     <div class="row">
                         @foreach ([
                             ['Subject', $document->subject ?: 'Not recorded'],
+                            ['Document reference', $document->document_reference ?: 'Not recorded'],
+                            ['Document date', $document->document_date?->format('d M Y') ?? 'Not recorded'],
                             ['Type', $document->documentType?->name ?? 'Not recorded'],
                             ['Originating directorate', $document->originating_directorate ?: 'Not recorded'],
                             ['Originating department', $document->originating_department ?: ($document->originating_directorate ? 'None (directorate office)' : 'Not recorded')],
@@ -217,6 +220,13 @@
                             No scanned file is attached.
                         </div>
                     @endforelse
+                    @can('ai.ocr.use')
+                        @if ($document->attachments->contains('is_primary', true))
+                            <div class="border-top mt-4 pt-3">
+                                <a href="{{ route('pdts.documents.analysis', $document) }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-comment-alt mr-1" aria-hidden="true"></i>AI Analysis</a>
+                            </div>
+                        @endif
+                    @endcan
                 </div>
             </section>
         </div>

@@ -86,6 +86,27 @@ describe('messenger screens', function () {
             ->assertSee('Pickup confirmed.');
 
         expect($movement->fresh()->picked_up_at)->not->toBeNull();
+        expect($this->document->fresh()->current_custodian_id)->toBe($messenger->id);
+
+        Livewire::actingAs($this->recipient)->test(Pending::class)->assertDontSee('PDTS-2026-0001');
+
+        Livewire::actingAs($messenger)->test(Custody::class)
+            ->call('openDelivery', $movement->id)
+            ->assertSee('Have you physically delivered this document')
+            ->call('deliver')
+            ->assertSet('errorMessage', null)
+            ->assertSet('deliveringMovementId', null)
+            ->assertSee('Awaiting recipient acknowledgement');
+
+        expect($movement->fresh()->delivered_at)->not->toBeNull();
+        expect($this->document->fresh()->current_custodian_id)->toBe($messenger->id);
+
+        Livewire::actingAs($this->recipient)->test(Pending::class)
+            ->assertSee('PDTS-2026-0001')
+            ->call('openAcknowledge', $movement->id)
+            ->call('acknowledge')
+            ->assertSet('errorMessage', null);
+        expect($this->document->fresh()->current_custodian_id)->toBe($this->recipient->id);
     });
 
     test('another messenger cannot confirm pickup through a forged request', function () {
@@ -138,6 +159,7 @@ describe('messenger screens', function () {
 
         $this->actingAs($messenger)->get(route('dashboard'))
             ->assertOk()->assertSee(route('movements.deliveries'))
+            ->assertSee(route('movements.custody'))
             ->assertDontSee('Confirm pickup');
         $this->get(route('movements.deliveries'))->assertOk()->assertSee('PDTS-2026-0001');
     });
@@ -151,6 +173,7 @@ describe('messenger screens', function () {
 
         $this->actingAs($messenger)->get(route('movements.deliveries'))
             ->assertOk()->assertSee('No deliveries are currently assigned to you.');
+        $this->get(route('movements.custody'))->assertOk()->assertSee('My Custody');
     });
 
     test('unassigned users cannot open deliveries or see its sidebar link', function () {
@@ -307,14 +330,21 @@ describe('pending acknowledgements', function () {
             ->assertDontSee('PDTS-2026-0001');
     });
 
-    test('acknowledging needs the confirmation and transfers custody', function () {
+    test('acknowledging physical receipt transfers custody without an upload or AI access', function () {
+        $this->recipient->syncRoles([]);
+        $this->recipient->syncPermissions(['documents.acknowledge']);
+        expect($this->recipient->can('ai.ocr.use'))->toBeFalse();
+
         Livewire::actingAs($this->recipient)->test(Pending::class)
             ->call('openAcknowledge', $this->movement->id)
             ->assertSee('I confirm I physically have this document.')
+            ->assertSee('Yes, I have it')
+            ->assertDontSee('Compare documents')
             ->call('acknowledge')
             ->assertSee('You are now the custodian');
 
-        expect((int) $this->document->fresh()->current_custodian_id)->toBe($this->recipient->id);
+        expect((int) $this->document->fresh()->current_custodian_id)->toBe($this->recipient->id)
+            ->and($this->movement->fresh()->status)->toBe(MovementStatus::Acknowledged);
     });
 
     test('closing the confirmation changes nothing', function () {
@@ -331,7 +361,7 @@ describe('pending acknowledgements', function () {
             ->call('openAcknowledge', $this->movement->id)
             ->assertDontSee('I confirm I physically have this document.')
             ->call('acknowledge')
-            ->assertSee('Only the intended recipient');
+            ->assertDontSee('You are now the custodian');
 
         expect((int) $this->document->fresh()->current_custodian_id)->toBe($this->sender->id);
     });

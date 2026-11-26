@@ -2,11 +2,13 @@
 
 namespace App\Livewire\Pdts;
 
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
+use App\Services\Ai\DocumentOcrClient;
+use App\Services\Ai\OcrTextFormatter;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use Throwable;
+use RuntimeException;
 
 class OcrWorkbench extends Component
 {
@@ -14,9 +16,26 @@ class OcrWorkbench extends Component
 
     public $document;
 
+    #[Locked]
     public ?array $analysis = null;
 
+    #[Locked]
     public string $uploadedFilename = '';
+
+    #[Locked]
+    public ?string $analysisError = null;
+
+    #[Locked]
+    public array $formattedBlocks = [];
+
+    #[Locked]
+    public ?string $formattingError = null;
+
+    public function updatedDocument(): void
+    {
+        $this->reset(['analysis', 'uploadedFilename', 'analysisError', 'formattedBlocks', 'formattingError']);
+        $this->resetValidation('document');
+    }
 
     protected function rules(): array
     {
@@ -25,41 +44,43 @@ class OcrWorkbench extends Component
         ];
     }
 
-    public function analyze(): void
+    public function analyze(DocumentOcrClient $ocr): void
     {
-        $this->validate();
-        set_time_limit((int) config('services.pdts_ai.timeout', 180) + 15);
+        abort_unless(Auth::user()?->can('ai.ocr.use'), 403);
 
-        $filename = basename($this->document->getClientOriginalName());
-        $path = $this->document->store('ai-ocr', 'private');
+        $this->reset(['analysis', 'uploadedFilename', 'analysisError', 'formattedBlocks', 'formattingError']);
+        $this->validate();
+        set_time_limit(max(30, (int) config('services.pdts_ai.timeout', 180) + 15));
 
         try {
-            $response = Http::acceptJson()
-                ->timeout(config('services.pdts_ai.timeout', 180))
-                ->withHeaders([
-                    'X-Pdts-Ai-Token' => config('services.pdts_ai.token'),
-                ])
-                ->attach('file', Storage::disk('private')->get($path), $filename)
-                ->post(rtrim(config('services.pdts_ai.url'), '/').'/api/ocr');
+            $this->analysis = $ocr->review($this->document);
+            $this->uploadedFilename = basename($this->document->getClientOriginalName());
+        } catch (RuntimeException $exception) {
+            $this->analysisError = $exception->getMessage();
+        }
+    }
 
-            if ($response->failed()) {
-                $this->addError('document', 'The OCR service could not process this file. Check that the document is readable and the OCR service is running.');
-                return;
-            }
+    public function formatText(OcrTextFormatter $formatter): void
+    {
+        abort_unless(Auth::user()?->can('ai.ocr.use'), 403);
 
-            $this->analysis = $response->json();
-            $this->uploadedFilename = $filename;
-            $this->document = null;
-        } catch (Throwable) {
-            $this->addError('document', 'The OCR service is unavailable. Start the local AI service and try again.');
-        } finally {
-            Storage::disk('private')->delete($path);
+        if ($this->analysis === null || $this->formattedBlocks !== []) {
+            return;
+        }
+
+        $this->formattingError = null;
+        set_time_limit(max(30, (int) config('services.azure_openai.timeout', 90) + 15));
+
+        try {
+            $this->formattedBlocks = $formatter->format($this->analysis['text']);
+        } catch (RuntimeException $exception) {
+            $this->formattingError = $exception->getMessage();
         }
     }
 
     public function clearResults(): void
     {
-        $this->reset(['document', 'analysis', 'uploadedFilename']);
+        $this->reset(['document', 'analysis', 'uploadedFilename', 'analysisError', 'formattedBlocks', 'formattingError']);
         $this->resetValidation();
     }
 

@@ -18,17 +18,7 @@
         @include('livewire.movements.partials.search')
     </div>
 
-    <ul class="nav nav-tabs mb-3" role="tablist">
-        @foreach ($tabs as $key => $label)
-            <li class="nav-item">
-                <a href="#" wire:click.prevent="setTab('{{ $key }}')" role="tab"
-                   class="nav-link {{ $tab === $key ? 'active font-weight-bold' : '' }}"
-                   aria-selected="{{ $tab === $key ? 'true' : 'false' }}">
-                    {{ $label }} <span class="badge badge-light ml-1" data-tab-count="{{ $key }}">{{ $counts[$key] }}</span>
-                </a>
-            </li>
-        @endforeach
-    </ul>
+    @include('livewire.movements.partials.filter-cards', ['statusFilter' => $tab, 'filterProperty' => 'tab'])
 
     <div class="card elevation-2 border-0">
         <div class="card-body p-0 table-responsive">
@@ -77,7 +67,9 @@
                             </td>
                             <td>
                                 <span data-where>
-                                    @if ($pending)
+                                    @if ($pending?->messenger_id && ! $pending->delivered_at)
+                                        {{ $pending->picked_up_at ? 'With messenger '.$pending->messenger?->name.', awaiting delivery' : 'Awaiting messenger pickup' }}
+                                    @elseif ($pending)
                                         On its way to {{ $pending->recipient?->name }}, waiting for receipt
                                     @elseif ($status === \App\Enums\DocumentStatus::Received)
                                         Received by {{ $receipt?->recipient?->name }} on {{ $receipt?->acknowledged_at->format('d M Y') }}
@@ -106,6 +98,8 @@
                             <td colspan="6" class="text-center text-muted py-4">
                                 @if ($search !== '')
                                     No documents match "{{ $search }}".
+                                @elseif ($tab !== 'all')
+                                    No documents match this filter.
                                 @else
                                     You have not registered any documents.
                                 @endif

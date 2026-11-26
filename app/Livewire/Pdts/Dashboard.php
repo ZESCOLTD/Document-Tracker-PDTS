@@ -8,6 +8,7 @@ use App\Models\DocumentMovement;
 use App\Models\PdtsDocument;
 use App\Models\PdtsDocumentAuditLog;
 use App\Models\User;
+use App\Services\Documents\WorkCounts;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -45,10 +46,7 @@ class Dashboard extends Component
 
     private function mine(User $user, $cutoff): array
     {
-        $waiting = DocumentMovement::query()
-            ->where('recipient_id', $user->id)
-            ->where('status', MovementStatus::AwaitingReceipt->value)
-            ->whereHas('document');
+        $waiting = app(WorkCounts::class)->pendingAcknowledgementsQuery($user);
 
         $sent = DocumentMovement::query()
             ->where('sender_id', $user->id)
@@ -67,8 +65,7 @@ class Dashboard extends Component
                 ->oldest('forwarded_at')
                 ->limit(5)
                 ->get(),
-            'custodyCount' => PdtsDocument::query()
-                ->where('current_custodian_id', $user->id)
+            'custodyCount' => app(WorkCounts::class)->custodyQuery($user)
                 ->whereIn('status', $this->values(self::OPEN_STATUSES))
                 ->count(),
             'sentCount' => (clone $sent)->count(),

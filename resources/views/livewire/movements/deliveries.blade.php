@@ -8,6 +8,8 @@
         <div class="alert alert-danger" role="alert">{{ $pickupError }}</div>
     @endif
 
+    @include('livewire.movements.partials.filter-cards')
+
     <div class="card elevation-2 border-0">
         <div class="card-body p-0 table-responsive">
             <table class="table table-hover mb-0">
@@ -17,7 +19,7 @@
                         <th>Subject</th>
                         <th>Collect from</th>
                         <th>Deliver to</th>
-                        <th class="text-right">Pickup</th>
+                        <th class="text-right">{{ $statusFilter === 'completed' ? 'Delivery' : 'Pickup' }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -36,9 +38,16 @@
                                 <div class="small text-muted">{{ $delivery->recipient_office }}</div>
                             </td>
                             <td class="text-right text-nowrap">
-                                @if ($delivery->picked_up_at)
-                                    <span class="text-success"><i class="fas fa-check mr-1" aria-hidden="true"></i>Picked up</span>
+                                @if ($delivery->status === \App\Enums\MovementStatus::Acknowledged)
+                                    <span class="text-success"><i class="fas fa-check mr-1" aria-hidden="true"></i>Received</span>
+                                    <div class="small text-muted">{{ $delivery->acknowledged_at?->format('d M Y H:i') }}</div>
+                                @elseif ($delivery->delivered_at)
+                                    <span class="text-info">Delivered; awaiting acknowledgement</span>
+                                    <div class="small text-muted">{{ $delivery->delivered_at->format('d M Y H:i') }}</div>
+                                @elseif ($delivery->picked_up_at)
+                                    <span class="text-info"><i class="fas fa-truck mr-1" aria-hidden="true"></i>Picked up; not delivered</span>
                                     <div class="small text-muted">{{ $delivery->picked_up_at->format('d M Y H:i') }}</div>
+                                    <a class="btn btn-sm btn-outline-primary mt-1" href="{{ route('movements.custody') }}">My Custody</a>
                                 @else
                                     <button type="button" class="btn btn-sm btn-outline-primary" wire:click="openPickup({{ $delivery->id }})" wire:loading.attr="disabled">
                                         <i class="fas fa-truck mr-1" aria-hidden="true"></i>Confirm pickup
@@ -48,7 +57,13 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">No deliveries are currently assigned to you.</td>
+                            <td colspan="5" class="text-center text-muted py-4">{{ match ($statusFilter) {
+                                'completed' => 'You have no completed deliveries.',
+                                'awaiting-pickup' => 'No deliveries are awaiting pickup.',
+                                'in-transit' => 'No deliveries are in transit.',
+                                'awaiting-receipt' => 'No deliveries are awaiting acknowledgement.',
+                                default => 'No deliveries are currently assigned to you.',
+                            } }}</td>
                         </tr>
                     @endforelse
                 </tbody>

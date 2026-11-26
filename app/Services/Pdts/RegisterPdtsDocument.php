@@ -4,7 +4,6 @@ namespace App\Services\Pdts;
 
 use App\Models\PdtsDocument;
 use App\Models\User;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -15,7 +14,7 @@ class RegisterPdtsDocument
     public function __construct(private readonly PdtsReferenceNumberGenerator $references) {}
 
     /**
-     * @param array{title: string, subject: string, description?: ?string, document_type_id: int, originating_directorate?: ?string, originating_department?: ?string, originating_office: string} $data
+     * @param  array{title: string, subject: string, document_reference?: ?string, document_date?: ?string, description?: ?string, document_type_id: int, originating_directorate?: ?string, originating_department?: ?string, originating_office: string}  $data
      */
     public function handle(array $data, User $registrar, UploadedFile $file): PdtsDocument
     {
@@ -29,6 +28,8 @@ class RegisterPdtsDocument
             return DB::transaction(function () use ($data, $registrar, $file, $storagePath): PdtsDocument {
                 $document = PdtsDocument::create([
                     'reference_number' => $this->references->next(),
+                    'document_reference' => $data['document_reference'] ?? null,
+                    'document_date' => $data['document_date'] ?? null,
                     'title' => $data['title'],
                     'subject' => $data['subject'],
                     'description' => $data['description'] ?? null,

@@ -14,7 +14,7 @@ Route::middleware(['auth', 'verified'])
     ->group(function () {
         Route::get('track', Track::class)->middleware('can:documents.register')->name('track');
         Route::get('pending', Pending::class)->middleware('can:documents.acknowledge')->name('pending');
-        Route::get('custody', Custody::class)->middleware('can:documents.forward')->name('custody');
+        Route::get('custody', Custody::class)->name('custody');
         Route::get('deliveries', Deliveries::class)->name('deliveries');
 
         // Access to these two depends on the document, so they check it themselves.

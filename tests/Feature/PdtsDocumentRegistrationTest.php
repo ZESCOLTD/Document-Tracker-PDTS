@@ -46,8 +46,8 @@ test('reference numbers increment within the configured year and prefix', functi
     $generator = app(PdtsReferenceNumberGenerator::class);
     $year = now()->format('Y');
 
-    expect($generator->next())->toBe("OMTS-{$year}-0001")
-        ->and($generator->next())->toBe("OMTS-{$year}-0002");
+    expect($generator->next())->toBe("PDTS-{$year}-0001")
+        ->and($generator->next())->toBe("PDTS-{$year}-0002");
 });
 
 test('authorized employee can register a document with a unique reference and private scan', function () {
@@ -70,7 +70,7 @@ test('authorized employee can register a document with a unique reference and pr
 
     $document = PdtsDocument::query()->with('attachments')->sole();
 
-    expect($document->reference_number)->toBe('OMTS-'.now()->format('Y').'-0001')
+    expect($document->reference_number)->toBe('PDTS-'.now()->format('Y').'-0001')
         ->and($document->status)->toBe('registered')
         ->and($document->registered_by)->toBe($this->registrar->id)
         ->and($document->current_custodian_id)->toBe($this->registrar->id)

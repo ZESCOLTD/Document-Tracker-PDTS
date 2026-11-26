@@ -7,6 +7,7 @@ use App\Models\PdtsDocumentType;
 use App\Models\PdtsOffice;
 use App\Services\Pdts\InternalDocuments;
 use App\Services\Pdts\RegisterPdtsDocument;
+use App\Services\Pdts\RegistrationApplicant;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
@@ -37,9 +38,9 @@ class InternalDocument extends Registration
     /** Values for the template's own placeholders, keyed by placeholder name. */
     public array $custom = [];
 
-    public function mount(): void
+    public function mount(RegistrationApplicant $applicants): void
     {
-        parent::mount();
+        parent::mount($applicants);
 
         $user = Auth::user();
         $this->from = (string) ($user->job_title ?: $user->name);

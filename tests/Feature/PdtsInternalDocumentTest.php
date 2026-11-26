@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 
-
 require_once __DIR__.'/../Support/docx.php';
 
 beforeEach(function () {

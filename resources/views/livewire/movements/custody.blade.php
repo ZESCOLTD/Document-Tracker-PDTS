@@ -2,13 +2,15 @@
     <div class="d-flex justify-content-between align-items-start flex-wrap mb-3">
         <div class="mb-2 mr-3">
             <h3 class="font-weight-bold mb-1">Documents in My Custody</h3>
-            <p class="text-muted mb-0">You stay responsible for a document until its recipient acknowledges receipt.</p>
+            <p class="text-muted mb-0">Documents currently held by you or awaiting confirmation of your delivery.</p>
         </div>
 
         @include('livewire.movements.partials.search')
     </div>
 
     @include('livewire.movements.partials.alerts')
+
+    @include('livewire.movements.partials.filter-cards')
 
     <div class="card elevation-2 border-0">
         <div class="card-body p-0 table-responsive">
@@ -33,7 +35,11 @@
                                 {{ $document->statusEnum()->plainLabel() }}
                                 <div class="small text-muted" data-status-hint>
                                     @php($reason = $last?->close_reason ? rtrim($last->close_reason, '. ').'.' : null)
-                                    @if ($document->pendingMovement?->isReturn())
+                                    @if ($document->statusEnum() === \App\Enums\DocumentStatus::Completed)
+                                        Completed by you. You are the final holder.
+                                    @elseif ($document->pendingMovement?->messenger_id && ! $document->pendingMovement->delivered_at)
+                                        {{ $document->pendingMovement->picked_up_at ? 'In messenger custody. Delivery to' : 'Awaiting messenger pickup for' }} {{ $document->pendingMovement->recipient->name }}.
+                                    @elseif ($document->pendingMovement?->isReturn())
                                         Sent back to {{ $document->pendingMovement->recipient->name }} for correction. Waiting for them to acknowledge.
                                     @elseif ($document->pendingMovement)
                                         Forwarded to {{ $document->pendingMovement->recipient->name }}. Waiting for them to acknowledge receipt.
@@ -50,15 +56,29 @@
                                 @if ($document->pendingMovement?->messenger_id)
                                     <div class="small text-info">
                                         Messenger: {{ $document->pendingMovement->messenger?->name }}.
-                                        {{ $document->pendingMovement->picked_up_at ? 'Picked up' : 'Awaiting pickup' }}
+                                        {{ $document->pendingMovement->delivered_at ? 'Delivered; awaiting acknowledgement' : ($document->pendingMovement->picked_up_at ? 'Picked up; not delivered' : 'Awaiting pickup') }}
                                     </div>
                                 @endif
                             </td>
                             <td class="text-right">
-                                @if ($document->pendingMovement)
-                                    <button type="button" class="btn btn-sm btn-outline-danger" wire:click="openCancel({{ $document->pendingMovement->id }})">
-                                        Cancel
-                                    </button>
+                                @if ($document->statusEnum() === \App\Enums\DocumentStatus::Completed)
+                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('movements.history', $document) }}">
+                                        <i class="fas fa-history mr-1" aria-hidden="true"></i>View history
+                                    </a>
+                                @elseif ($document->pendingMovement)
+                                    @if ((int) $document->pendingMovement->messenger_id === (int) auth()->id())
+                                        @if ($document->pendingMovement->delivered_at)
+                                            <span class="text-muted small">Awaiting recipient acknowledgement</span>
+                                        @elseif ($document->pendingMovement->picked_up_at)
+                                            <button type="button" class="btn btn-sm btn-primary" wire:click="openDelivery({{ $document->pendingMovement->id }})" wire:loading.attr="disabled">
+                                                <i class="fas fa-truck mr-1" aria-hidden="true"></i>Deliver
+                                            </button>
+                                        @else
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('movements.deliveries') }}">Confirm pickup</a>
+                                        @endif
+                                    @elseif (app(\App\Services\Documents\CustodyService::class)->canCancel($document->pendingMovement, auth()->user()))
+                                        <button type="button" class="btn btn-sm btn-outline-danger" wire:click="openCancel({{ $document->pendingMovement->id }})">Cancel</button>
+                                    @endif
                                 @else
                                     <div x-data="{
                                         expanded: false,
@@ -130,7 +150,11 @@
                     @empty
                         <tr>
                             <td colspan="5" class="text-center text-muted py-4">
-                                {{ $search === '' ? 'You are not holding any documents.' : 'No documents match "'.$search.'".' }}
+                                {{ $search === '' ? match ($statusFilter) {
+                                    'completed' => 'You have not completed any documents.',
+                                    'awaiting_receipt', 'received' => 'No documents match this filter.',
+                                    default => 'You are not holding any active documents.',
+                                } : 'No documents match "'.$search.'".' }}
                             </td>
                         </tr>
                     @endforelse
@@ -140,6 +164,27 @@
     </div>
 
     <div class="mt-3">{{ $documents->links() }}</div>
+
+    @if ($deliveringMovement)
+        <div class="modal d-block" role="dialog" aria-modal="true" aria-labelledby="delivery-title" tabindex="-1"
+             x-data x-init="$nextTick(() => $refs.cancelDelivery.focus())" x-on:keydown.escape.stop.prevent="$wire.closeDelivery()"
+             style="background: rgba(0, 0, 0, .5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <form wire:submit="deliver" class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title" id="delivery-title">Confirm delivery</h5></div>
+                    <div class="modal-body">
+                        <p><strong>{{ $deliveringMovement->document->reference_number }}</strong>: {{ $deliveringMovement->document->title }}</p>
+                        <p>Have you physically delivered this document to {{ $deliveringMovement->recipient->name }}?</p>
+                        <p class="text-muted mb-0">You remain responsible until the recipient acknowledges receipt.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" x-ref="cancelDelivery" wire:click="closeDelivery">Not yet</button>
+                        <button type="submit" class="btn btn-primary" wire:loading.attr="disabled"><i class="fas fa-check mr-1" aria-hidden="true"></i>Confirm delivery</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 
     @if ($cancellingMovement)
         <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" style="background: rgba(0, 0, 0, .5);">

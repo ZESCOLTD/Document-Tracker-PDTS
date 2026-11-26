@@ -31,6 +31,11 @@ class Track extends Component
     #[Url(except: 'all')]
     public string $tab = 'all';
 
+    public function updatedTab(): void
+    {
+        $this->setTab($this->tab);
+    }
+
     public function setTab(string $tab): void
     {
         $this->tab = array_key_exists($tab, self::TABS) ? $tab : 'all';
@@ -44,11 +49,11 @@ class Track extends Component
 
         $counts = [];
         foreach (array_keys(self::TABS) as $key) {
-            $counts[$key] = $this->inTab($this->mine(), $key)->count();
+            $counts[$key] = $this->documentsQuery($key)->count();
         }
 
-        $documents = $this->inTab($this->applyDocumentSearch($this->mine()), $this->tab)
-            ->with(['documentType', 'currentCustodian', 'pendingMovement.recipient', 'latestReceipt.recipient'])
+        $documents = $this->documentsQuery()
+            ->with(['documentType', 'currentCustodian', 'pendingMovement.recipient', 'pendingMovement.messenger', 'latestReceipt.recipient'])
             // Stuck documents first, then the newest.
             ->orderByRaw(
                 'case when exists (select 1 from pdts_document_movements m where m.open_document_id = pdts_documents.id and m.forwarded_at <= ?) then 0 else 1 end',
@@ -59,11 +64,19 @@ class Track extends Component
 
         return view('livewire.movements.track', [
             'documents' => $documents,
-            'tabs' => self::TABS,
-            'counts' => $counts,
+            'filterCards' => [
+                'all' => ['label' => 'All documents', 'icon' => 'fa-layer-group', 'count' => $counts['all']],
+                'in-progress' => ['label' => 'In progress', 'icon' => 'fa-hourglass-half', 'tone' => 'amber', 'count' => $counts['in-progress']],
+                'completed' => ['label' => 'Completed', 'icon' => 'fa-check-circle', 'tone' => 'green', 'count' => $counts['completed']],
+            ],
             'cutoff' => $cutoff,
             'overdueAfterDays' => $overdueAfterDays,
         ])->layout('layouts.master', ['title' => 'Track My Documents']);
+    }
+
+    protected function documentsQuery(?string $tab = null): Builder
+    {
+        return $this->inTab($this->applyDocumentSearch($this->mine()), $tab ?? $this->tab);
     }
 
     /**

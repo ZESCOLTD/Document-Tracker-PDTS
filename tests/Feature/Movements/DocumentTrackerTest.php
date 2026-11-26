@@ -42,10 +42,11 @@ function tracked(PdtsDocument $document): array
     return app(DocumentTracker::class)->for($document->fresh());
 }
 
-test('history includes messenger pickup and final completion without assigning custody to the messenger', function () {
+test('history includes messenger custody delivery receipt and final completion', function () {
     $messenger = User::factory()->create(['name' => 'Assigned Messenger']);
     $movement = $this->custody->forward($this->document, $this->employee, $this->supervisor, null, $messenger);
     $this->custody->confirmPickup($movement, $messenger);
+    $this->custody->confirmDelivery($movement, $messenger);
     $this->custody->acknowledge($movement, $this->supervisor);
     $this->custody->complete($this->document, $this->supervisor, 'signed', 'Original signed');
 
@@ -53,9 +54,9 @@ test('history includes messenger pickup and final completion without assigning c
 
     expect($track['headline'])->toBe('Completed')
         ->and($track['detail'])->toContain('Sid Supervisor is the final holder')
-        ->and(collect($track['events'])->pluck('type')->all())->toContain('completed', 'picked_up')
-        ->and($track['stops'])->toHaveCount(2)
-        ->and($track['stops'][1]['state'])->toBe('ended');
+        ->and(collect($track['events'])->pluck('type')->all())->toContain('completed', 'picked_up', 'delivered')
+        ->and($track['stops'])->toHaveCount(3)
+        ->and($track['stops'][2]['state'])->toBe('ended');
 
     Livewire::actingAs($messenger)->test(History::class, ['document' => $this->document])
         ->assertSee('Picked up')->assertSee('Original signed')->assertSee('Completed');
@@ -261,8 +262,8 @@ describe('track my documents', function () {
 
     test('tabs show all and in-progress documents only', function () {
         Livewire::actingAs($this->employee)->test(Track::class)
-            ->assertSeeHtml('data-tab-count="all">1<')
-            ->assertSeeHtml('data-tab-count="in-progress">1<')
+            ->assertSeeHtml('data-filter-count="all">1<')
+            ->assertSeeHtml('data-filter-count="in-progress">1<')
             ->assertSee('PDTS-2026-0100')
             ->call('setTab', 'nonsense')
             ->assertSet('tab', 'all');

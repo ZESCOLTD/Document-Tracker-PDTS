@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 
-
 beforeEach(function () {
     Notification::fake();
 

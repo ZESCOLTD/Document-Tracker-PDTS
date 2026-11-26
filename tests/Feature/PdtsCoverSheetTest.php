@@ -7,7 +7,6 @@ use App\Models\User;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 
-
 beforeEach(function () {
     Permission::firstOrCreate(['name' => 'documents.view', 'guard_name' => 'web']);
 

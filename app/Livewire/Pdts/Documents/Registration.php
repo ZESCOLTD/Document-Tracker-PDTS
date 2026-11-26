@@ -6,12 +6,17 @@ use App\Models\PdtsDepartment;
 use App\Models\PdtsDirectorate;
 use App\Models\PdtsDocumentType;
 use App\Models\PdtsOffice;
+use App\Services\Ai\DocumentMetadataExtractor;
+use App\Services\Ai\DocumentOcrClient;
 use App\Services\Pdts\RegisterPdtsDocument;
+use App\Services\Pdts\RegistrationApplicant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use RuntimeException;
 
 /**
  * Document type, directorate, department and office come from Configurations.
@@ -29,6 +34,10 @@ class Registration extends Component
 
     public string $subject = '';
 
+    public string $document_reference = '';
+
+    public string $document_date = '';
+
     public string $description = '';
 
     public string $directorate_id = '';
@@ -41,10 +50,97 @@ class Registration extends Component
 
     public $attachment;
 
-    public function mount(): void
+    #[Locked]
+    public string $ocrText = '';
+
+    #[Locked]
+    public int $ocrPageCount = 0;
+
+    #[Locked]
+    public ?string $ocrError = null;
+
+    #[Locked]
+    public ?string $autoFillError = null;
+
+    #[Locked]
+    public bool $autoFillComplete = false;
+
+    #[Locked]
+    public array $autoFilledValues = [];
+
+    #[Locked]
+    public array $applicantDetails = [];
+
+    #[Locked]
+    public string $applicantUnitSource = '';
+
+    public function updatedAttachment(): void
+    {
+        foreach (['title', 'subject', 'description', 'document_reference', 'document_date', 'document_type_id'] as $field) {
+            if (isset($this->autoFilledValues[$field]) && $this->{$field} === $this->autoFilledValues[$field]) {
+                $this->{$field} = '';
+            }
+        }
+        $this->reset(['ocrText', 'ocrPageCount', 'ocrError', 'autoFillError', 'autoFillComplete', 'autoFilledValues']);
+        if ($this->attachment && Auth::user()?->can('documents.register') && Auth::user()?->can('ai.ocr.use')) {
+            $this->dispatch('registration-uploaded');
+        }
+    }
+
+    public function fillFromDocument(DocumentOcrClient $ocr, DocumentMetadataExtractor $extractor): void
+    {
+        abort_unless(Auth::user()?->can('documents.register') && Auth::user()?->can('ai.ocr.use'), 403);
+        if ($this->autoFillComplete) {
+            return;
+        }
+        $this->autoFillError = null;
+        $this->analyseDocument($ocr);
+        if ($this->ocrError !== null) {
+            return;
+        }
+        set_time_limit(max(30, (int) config('services.azure_openai.timeout', 90) + 15));
+        try {
+            $metadata = $extractor->extract($this->ocrText, $this->documentTypeOptions());
+            foreach (['title', 'subject', 'description', 'document_reference', 'document_date', 'document_type_id'] as $field) {
+                if ($metadata[$field] !== null && trim($this->{$field}) === '') {
+                    $this->{$field} = (string) $metadata[$field];
+                    $this->autoFilledValues[$field] = $this->{$field};
+                    $this->resetValidation($field);
+                }
+            }
+            $this->autoFillComplete = true;
+        } catch (RuntimeException $exception) {
+            $this->autoFillError = $exception->getMessage();
+        }
+    }
+
+    protected function documentTypeOptions(): array
+    {
+        return PdtsDocumentType::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all();
+    }
+
+    public function analyseDocument(DocumentOcrClient $ocr): void
+    {
+        abort_unless(Auth::user()?->can('documents.register') && Auth::user()?->can('ai.ocr.use'), 403);
+
+        $this->reset(['ocrText', 'ocrPageCount', 'ocrError']);
+        $this->validateOnly('attachment');
+        set_time_limit(max(30, (int) config('services.pdts_ai.timeout', 180) + 15));
+
+        try {
+            $result = $ocr->extract($this->attachment);
+            $this->ocrText = $result['text'];
+            $this->ocrPageCount = $result['page_count'];
+        } catch (RuntimeException $exception) {
+            $this->ocrError = $exception->getMessage();
+        }
+    }
+
+    public function mount(RegistrationApplicant $applicants): void
     {
         // Start from the registrar's own office, when they have an active one.
-        $office = Auth::user()->currentPdtsOfficeAssignments()
+        $user = Auth::user();
+        $office = $user->currentPdtsOfficeAssignments()
             ->with(['office.department.directorate', 'office.directorate'])
             ->orderByDesc('is_primary')
             ->latest('starts_at')
@@ -52,11 +148,13 @@ class Registration extends Component
             ->pluck('office')
             ->first(fn (?PdtsOffice $office) => $office?->isUsable());
 
-        if ($office) {
-            $this->directorate_id = (string) $office->owningDirectorate()->id;
-            $this->department_id = (string) ($office->department_id ?? '');
-            $this->office_id = (string) $office->id;
-        }
+        $directorates = $office ? collect() : PdtsDirectorate::query()->where('is_active', true)->with('departments')->get();
+        $details = $applicants->resolve($user, $office, $directorates);
+        $this->applicantDetails = $details['applicant'];
+        $this->applicantUnitSource = $details['unit_source'];
+        $this->directorate_id = $details['directorate_id'];
+        $this->department_id = $details['department_id'];
+        $this->office_id = $details['office_id'];
     }
 
     public function updatedDirectorateId(): void
@@ -77,6 +175,8 @@ class Registration extends Component
         return [
             'title' => ['required', 'string', 'max:255'],
             'subject' => ['required', 'string', 'max:255'],
+            'document_reference' => ['nullable', 'string', 'max:255'],
+            'document_date' => ['nullable', 'date_format:Y-m-d'],
             'description' => ['nullable', 'string', 'max:10000'],
             'directorate_id' => [
                 'required',
@@ -141,6 +241,8 @@ class Registration extends Component
         $document = $registration->handle([
             'title' => $validated['title'],
             'subject' => $validated['subject'],
+            'document_reference' => $validated['document_reference'] ?: null,
+            'document_date' => $validated['document_date'] ?: null,
             'description' => $validated['description'] ?: null,
             'document_type_id' => (int) $validated['document_type_id'],
             'originating_directorate' => $office->owningDirectorate()->name,

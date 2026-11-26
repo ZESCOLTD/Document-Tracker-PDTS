@@ -35,7 +35,16 @@ class WorkCounts
                 ->where('recipient_id', $user->id)
                 ->orWhereIn('recipient_id', $delegatedPrincipalIds))
             ->where('status', MovementStatus::AwaitingReceipt->value)
+            ->where(fn (Builder $query) => $query->whereNull('messenger_id')->orWhereNotNull('delivered_at'))
             ->whereHas('document');
+    }
+
+    public function custodyQuery(User $user): Builder
+    {
+        return PdtsDocument::query()->where(fn (Builder $query) => $query
+            ->where('current_custodian_id', $user->id)
+            ->orWhereHas('pendingMovement', fn (Builder $movement) => $movement
+                ->where('messenger_id', $user->id)->whereNotNull('picked_up_at')));
     }
 
     /**
@@ -45,8 +54,7 @@ class WorkCounts
     {
         return $this->cache[$user->id] ??= [
             'pending' => $this->pendingAcknowledgementsQuery($user)->count(),
-            'custody' => PdtsDocument::query()
-                ->where('current_custodian_id', $user->id)
+            'custody' => $this->custodyQuery($user)
                 ->whereIn('status', [
                     DocumentStatus::Registered->value,
                     DocumentStatus::AwaitingReceipt->value,
@@ -56,6 +64,7 @@ class WorkCounts
             'deliveries' => DocumentMovement::query()
                 ->where('messenger_id', $user->id)
                 ->where('status', MovementStatus::AwaitingReceipt->value)
+                ->whereNull('picked_up_at')
                 ->whereHas('document')
                 ->count(),
         ];

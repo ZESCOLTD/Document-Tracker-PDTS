@@ -12,6 +12,7 @@ use App\Http\Middleware\ScanPageAccess;
 use App\Livewire\Admin\EmailLogIndex;
 use App\Livewire\Notifications\Index;
 use App\Livewire\Pdts\Dashboard;
+use App\Livewire\Pdts\Documents\DocumentAiPanel;
 use App\Livewire\Pdts\Documents\Index as PdtsDocumentIndex;
 use App\Livewire\Pdts\Documents\InternalDocument;
 use App\Livewire\Pdts\Documents\Registration as PdtsDocumentRegistration;
@@ -106,6 +107,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->whereNumber('document')
         ->middleware('can:documents.view')
         ->name('pdts.documents.show');
+    Route::get('/documents/{document}/analysis', DocumentAiPanel::class)
+        ->whereNumber('document')
+        ->middleware(['can:documents.view', 'can:ai.ocr.use'])
+        ->name('pdts.documents.analysis');
     Route::get('/documents/{document}/attachments/{attachment}', PdtsDocumentAttachmentController::class)
         ->whereNumber('document')
         ->whereNumber('attachment')

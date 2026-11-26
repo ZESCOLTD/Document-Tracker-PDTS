@@ -10,14 +10,14 @@
             </a>
         </li>
     @endcan
-    @can('documents.forward')
+    @if (auth()->user()->can('documents.forward') || $canViewDeliveries)
         <li class="nav-item">
             <a href="{{ route('movements.custody') }}" class="nav-link {{ request()->routeIs('movements.custody') ? 'active' : '' }}">
                 <i class="nav-icon fas fa-folder"></i><p>My Custody
                     @include('layouts.partials.sidebar-count', ['count' => $counts['custody'], 'label' => 'in your custody'])</p>
             </a>
         </li>
-    @endcan
+    @endif
     @can('documents.register')
         <li class="nav-item">
             <a href="{{ route('movements.track') }}" class="nav-link {{ request()->routeIs('movements.track') ? 'active' : '' }}">
@@ -29,7 +29,7 @@
         <li class="nav-item">
             <a href="{{ route('movements.deliveries') }}" class="nav-link {{ request()->routeIs('movements.deliveries') ? 'active' : '' }}">
                 <i class="nav-icon fas fa-truck"></i><p>My Deliveries
-                    @include('layouts.partials.sidebar-count', ['count' => $counts['deliveries'], 'label' => 'to deliver'])</p>
+                    @include('layouts.partials.sidebar-count', ['count' => $counts['deliveries'], 'label' => 'awaiting pickup'])</p>
             </a>
         </li>
     @endif

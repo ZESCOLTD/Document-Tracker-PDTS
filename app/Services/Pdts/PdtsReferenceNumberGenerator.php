@@ -9,7 +9,7 @@ class PdtsReferenceNumberGenerator
 {
     public function next(): string
     {
-        $prefix = strtoupper(trim((string) config('pdts.reference.prefix', 'OMTS')));
+        $prefix = strtoupper(trim((string) config('pdts.reference.prefix', 'PDTS')));
         if (! preg_match('/^[A-Z0-9]{2,10}$/', $prefix)) {
             throw new InvalidArgumentException('PDTS reference prefix must be 2 to 10 letters or numbers.');
         }

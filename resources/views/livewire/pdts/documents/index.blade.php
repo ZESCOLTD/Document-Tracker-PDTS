@@ -11,6 +11,8 @@
         @endcan
     </div>
 
+    @include('livewire.movements.partials.filter-cards')
+
     <section class="bg-white border rounded p-3">
         <div class="form-group">
             <label class="sr-only" for="document-search">Search registered documents</label>

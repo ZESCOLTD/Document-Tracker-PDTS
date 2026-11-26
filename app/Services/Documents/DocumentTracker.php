@@ -13,9 +13,8 @@ use Illuminate\Support\Collection;
  * Turns a document's records into what the tracking page shows: the stops the
  * document has reached, and a timeline of everything that happened.
  *
- * Declined and cancelled handovers appear in the timeline but are not stops,
- * because the document never moved. Future stops are not shown, because a
- * document's route is not known in advance.
+ * Messenger pickup and recipient receipt are separate stops. Declined and
+ * cancelled handovers remain in the timeline without creating receipt stops.
  */
 class DocumentTracker
 {
@@ -29,6 +28,7 @@ class DocumentTracker
             'auditLogs.actor',
             'movements.sender',
             'movements.recipient',
+            'movements.messenger',
             'movements.acknowledgedBy',
             'movements.closedBy',
         ]);
@@ -62,6 +62,10 @@ class DocumentTracker
             $sender = $movement->sender?->name;
             $forwarded = "Forwarded by {$sender} on ".$movement->forwarded_at?->format('d M Y H:i');
 
+            if ($movement->messenger_id && $movement->picked_up_at) {
+                $stops[] = $this->stop('Messenger custody', $movement->messenger?->officeName() ?? self::NO_OFFICE, $movement->messenger?->name, $movement->picked_up_at);
+            }
+
             if ($movement->status === MovementStatus::Acknowledged) {
                 $receivedOffice = $movement->acknowledged_office ?? $office;
                 $receivedPerson = $movement->newCustodian?->name ?? $movement->acknowledgedBy?->name ?? $movement->recipient?->name;
@@ -76,9 +80,12 @@ class DocumentTracker
                 $receivedEvent['person'] = $receivedPerson;
                 $events[] = $receivedEvent;
             } elseif ($movement->isPending()) {
-                $stops[] = $this->stop('Awaiting Receipt', $office, $movement->recipient?->name, $movement->forwarded_at);
+                $pendingLabel = $movement->messenger_id && ! $movement->delivered_at
+                    ? ($movement->picked_up_at ? 'Awaiting delivery' : 'Awaiting pickup')
+                    : 'Awaiting Receipt';
+                $stops[] = $this->stop($pendingLabel, $office, $movement->recipient?->name, $movement->delivered_at ?? $movement->forwarded_at);
 
-                $events[] = $this->event('pending', 'Awaiting Receipt', $office, $movement, $movement->forwarded_at, [
+                $events[] = $this->event('pending', $pendingLabel, $office, $movement, $movement->forwarded_at, [
                     "Forwarded by {$sender}, not yet acknowledged",
                 ]);
             } else {
@@ -88,18 +95,19 @@ class DocumentTracker
                     $forwarded,
                     ($declined ? 'Declined by ' : 'Cancelled by ').$movement->closedBy?->name,
                     'Reason: '.$movement->close_reason,
-                    'The document did not move',
+                    $movement->delivered_at ? 'Return assigned to the messenger' : ($movement->picked_up_at ? 'Closed without recipient acknowledgement' : 'The document did not move'),
                 ]);
             }
         }
 
-        foreach ($document->auditLogs->whereIn('action', ['handover_picked_up', 'document_completed']) as $audit) {
+        foreach ($document->auditLogs->whereIn('action', ['handover_picked_up', 'handover_delivered', 'document_completed']) as $audit) {
             $isCompletion = $audit->action === 'document_completed';
+            $isDelivery = $audit->action === 'handover_delivered';
             $movement = $movements->firstWhere('id', $audit->details['movement_id'] ?? null);
             $events[] = [
-                'type' => $isCompletion ? 'completed' : 'picked_up',
-                'title' => $isCompletion ? 'Completed' : 'Picked up',
-                'office' => $isCompletion ? $this->currentOffice($document, $received) : ($movement?->sender_office ?? self::NO_OFFICE),
+                'type' => $isCompletion ? 'completed' : ($isDelivery ? 'delivered' : 'picked_up'),
+                'title' => $isCompletion ? 'Completed' : ($isDelivery ? 'Delivered; awaiting acknowledgement' : 'Picked up'),
+                'office' => $isCompletion ? $this->currentOffice($document, $received) : (($isDelivery ? $movement?->recipient_office : $movement?->sender_office) ?? self::NO_OFFICE),
                 'person' => $audit->actor?->name,
                 'at' => $audit->occurred_at,
                 'details' => $isCompletion ? [CustodyService::COMPLETION_ACTIONS[$audit->details['action_type'] ?? ''] ?? 'Other'] : [],
@@ -210,6 +218,16 @@ class DocumentTracker
         }
 
         if ($pending) {
+            if ($pending->messenger_id) {
+                return [
+                    'headline' => $pending->delivered_at ? 'Delivered; awaiting acknowledgement' : ($pending->picked_up_at ? 'In messenger custody' : 'Awaiting messenger pickup'),
+                    'detail' => $pending->delivered_at
+                        ? "{$pending->recipient?->name} must acknowledge receipt. {$pending->messenger?->name} remains responsible until then."
+                        : ($pending->picked_up_at ? "{$pending->messenger?->name} is carrying the document to {$pending->recipient?->name}." : "{$custodian} holds the document until {$pending->messenger?->name} confirms pickup."),
+                    'since' => $pending->delivered_at ?? $pending->picked_up_at ?? $pending->forwarded_at,
+                ];
+            }
+
             return [
                 'headline' => 'On its way to '.$this->placeName($this->recipientOffice($pending), $pending->recipient?->name),
                 'detail' => "{$pending->recipient?->name} has not acknowledged receipt yet. {$custodian} remains responsible for it.",

@@ -6,7 +6,10 @@ use App\Models\DocumentMovement;
 use App\Services\Documents\CustodyException;
 use App\Services\Documents\CustodyService;
 use App\Services\Documents\WorkCounts;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -19,8 +22,29 @@ class Pending extends Component
 
     protected $paginationTheme = 'bootstrap';
 
+    private const FILTERS = [
+        'all' => ['label' => 'Awaiting receipt', 'icon' => 'fa-inbox'],
+        'ready' => ['label' => 'Direct handovers', 'icon' => 'fa-share', 'tone' => 'green'],
+        'delivered' => ['label' => 'Delivered by messenger', 'icon' => 'fa-truck', 'tone' => 'blue'],
+    ];
+
+    #[Url(as: 'status', except: 'all')]
+    public string $statusFilter = 'all';
+
+    public function updatedStatusFilter(): void
+    {
+        if (! array_key_exists($this->statusFilter, self::FILTERS)) {
+            $this->statusFilter = 'all';
+        }
+
+        $this->resetPage();
+        $this->closeDialog();
+    }
+
+    #[Locked]
     public ?int $dialogMovementId = null;
 
+    #[Locked]
     public ?string $dialogMode = null;
 
     public string $reason = '';
@@ -65,12 +89,26 @@ class Pending extends Component
         });
     }
 
-    public function render()
+    protected function movementsQuery(?string $filter = null): Builder
     {
-        // Shared with the sidebar badge so the count and this list always agree.
+        $filter ??= $this->statusFilter;
         $query = app(WorkCounts::class)->pendingAcknowledgementsQuery(Auth::user());
 
+        return match ($filter) {
+            'ready' => $query->whereNull('messenger_id'),
+            'delivered' => $query->whereNotNull('messenger_id')->whereNotNull('delivered_at'),
+            default => $query,
+        };
+    }
+
+    public function render()
+    {
+        $query = $this->movementsQuery();
+
         return view('livewire.movements.pending', [
+            'filterCards' => collect(self::FILTERS)->map(fn (array $card, string $filter) => $card + [
+                'count' => $this->movementsQuery($filter)->count(),
+            ])->all(),
             'movements' => (clone $query)
                 ->with(['sender', 'document' => fn ($q) => $q->with('documentType')->withCount('attachments')])
                 ->oldest('forwarded_at')

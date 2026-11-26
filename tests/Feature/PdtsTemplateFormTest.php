@@ -24,7 +24,6 @@ use Spatie\Permission\Models\Permission;
 require_once __DIR__.'/../Support/docx.php';
 require_once __DIR__.'/../Support/pdf.php';
 
-
 beforeEach(function () {
     Storage::fake('private');
 

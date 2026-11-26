@@ -41,4 +41,13 @@ return [
         'timeout' => (int) env('AI_SERVICE_TIMEOUT', 180),
     ],
 
+    'azure_openai' => [
+        'endpoint' => env('AZURE_OPENAI_ENDPOINT', ''),
+        'deployment' => env('AZURE_OPENAI_DEPLOYMENT', ''),
+        'api_key' => env('AZURE_OPENAI_API_KEY', ''),
+        'api_version' => env('AZURE_OPENAI_API_VERSION', ''),
+        'timeout' => (int) env('AZURE_OPENAI_TIMEOUT', 90),
+        'max_completion_tokens' => (int) env('AZURE_OPENAI_MAX_COMPLETION_TOKENS', 1024),
+    ],
+
 ];

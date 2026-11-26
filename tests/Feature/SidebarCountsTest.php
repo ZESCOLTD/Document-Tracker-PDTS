@@ -24,7 +24,7 @@ test('counts what waits on each user and matches their pages', function () {
 
     $counts = new WorkCounts;
 
-    expect($counts->for($this->recipient))->toBe(['pending' => 2, 'custody' => 0, 'deliveries' => 0])
+    expect($counts->for($this->recipient))->toBe(['pending' => 0, 'custody' => 0, 'deliveries' => 0])
         ->and($counts->for($this->sender))->toBe(['pending' => 0, 'custody' => 3, 'deliveries' => 0])
         ->and($counts->for($messenger))->toBe(['pending' => 0, 'custody' => 0, 'deliveries' => 2]);
 });
