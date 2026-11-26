@@ -74,7 +74,7 @@ test('people not involved see no details, even with documents.view', function ()
         ->assertSee('Report found / wrong delivery');
 });
 
-test('the messenger confirms pickup, then the recipient confirms receipt', function () {
+test('the messenger confirms pickup and delivery, then the recipient confirms receipt', function () {
     forwardWithMessenger();
 
     scanFor($this->recipient)
@@ -85,6 +85,16 @@ test('the messenger confirms pickup, then the recipient confirms receipt', funct
         ->assertSee('Confirm pickup')
         ->call('confirmPickup')
         ->assertSee('Pickup confirmed');
+
+    // Picked up but not delivered: the recipient cannot confirm receipt yet.
+    scanFor($this->recipient)
+        ->assertSee('The messenger must confirm delivery')
+        ->assertDontSee('Confirm receipt');
+
+    scanFor($this->messenger)
+        ->assertSeeHtml('data-test="confirm-delivery"')
+        ->call('confirmDelivery')
+        ->assertSee('Delivery confirmed');
 
     scanFor($this->recipient)
         ->assertSee('Confirm receipt')

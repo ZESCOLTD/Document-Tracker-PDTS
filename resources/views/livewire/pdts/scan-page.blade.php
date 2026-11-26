@@ -77,7 +77,7 @@
                         <div class="small text-muted">
                             Sent by {{ $pending->sender?->name ?? 'a former user' }} {{ $pending->forwarded_at?->diffForHumans() }}.
                             @if ($pending->messenger_id)
-                                Messenger: {{ $pending->messenger?->name }}, {{ $pending->picked_up_at ? 'picked up '.$pending->picked_up_at->diffForHumans() : 'not picked up yet' }}.
+                                Messenger: {{ $pending->messenger?->name }}, {{ $pending->delivered_at ? 'delivered '.$pending->delivered_at->diffForHumans() : ($pending->picked_up_at ? 'picked up '.$pending->picked_up_at->diffForHumans().', not delivered yet' : 'not picked up yet') }}.
                             @endif
                         </div>
                         @if ($pending->remarks)
@@ -156,10 +156,17 @@
                         <i class="fas fa-truck mr-1"></i>Confirm pickup
                     </button>
                 @endif
+                @if ($can['deliver'])
+                    <button type="button" class="btn btn-primary btn-lg btn-block" wire:click="confirmDelivery" wire:loading.attr="disabled" data-test="confirm-delivery">
+                        <i class="fas fa-inbox mr-1"></i>Confirm delivery to {{ $pending->recipient?->name ?? 'the recipient' }}
+                    </button>
+                @endif
 
                 @if ($can['acknowledge'])
                     @if ($waitingForPickup)
                         <div class="alert alert-warning mb-2">The messenger must confirm pickup before you can confirm receipt.</div>
+                    @elseif ($waitingForDelivery)
+                        <div class="alert alert-warning mb-2">The messenger must confirm delivery before you can confirm receipt.</div>
                     @else
                         <button type="button" class="btn btn-success btn-lg btn-block" wire:click="acknowledge" wire:loading.attr="disabled">
                             <i class="fas fa-check mr-1"></i>Confirm receipt{{ (int) $pending->recipient_id !== (int) auth()->id() ? ' for '.$pending->recipient?->name : '' }}

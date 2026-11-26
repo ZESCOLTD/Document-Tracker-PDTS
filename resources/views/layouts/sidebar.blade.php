@@ -105,6 +105,40 @@
 
                 @auth
                     @php
+                        $signatureActions = \App\Livewire\Pdts\Signatures\SignatureRequests::actionCount((int) auth()->id());
+                    @endphp
+                    @can('documents.view')
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.documents.archive') }}" class="nav-link {{ request()->routeIs('pdts.documents.archive') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-archive"></i><p>Archive</p>
+                            </a>
+                        </li>
+                    @endcan
+                    <li class="nav-item">
+                        <a href="{{ route('pdts.signatures') }}" class="nav-link {{ request()->routeIs('pdts.signatures') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-file-signature"></i><p>Signatures
+                                @if ($signatureActions > 0)<span class="right badge badge-warning">{{ $signatureActions }}</span>@endif
+                            </p>
+                        </a>
+                    </li>
+                    @can('signatures.verify')
+                        @php
+                            $signaturesToVerify = \App\Models\UserSignatureImage::query()->where('status', 'pending')->where('user_id', '!=', auth()->id())->count();
+                        @endphp
+                        <li class="nav-item">
+                            <a href="{{ route('pdts.signatures.verification') }}" class="nav-link {{ request()->routeIs('pdts.signatures.verification') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-user-shield"></i><p>Signature Verification
+                                    @if ($signaturesToVerify > 0)<span class="right badge badge-warning">{{ $signaturesToVerify }}</span>@endif
+                                </p>
+                            </a>
+                        </li>
+                    @endcan
+                    <li class="nav-item">
+                        <a href="{{ route('settings.signature') }}" class="nav-link {{ request()->routeIs('settings.signature') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-signature"></i><p>My Signature</p>
+                        </a>
+                    </li>
+                    @php
                         $notifOpen = request()->routeIs('notifications.*')
                             || request()->routeIs('settings.notifications')
                             || request()->routeIs('admin.email_log');

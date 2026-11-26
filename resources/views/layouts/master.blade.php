@@ -248,15 +248,18 @@
     @include('layouts.sidebar')
 
     <div class="content-wrapper">
+        {{-- Only when the page gives a header; an empty one left a gap above every page. --}}
+        @if (filled($pageHeader ?? null))
         <div class="content-header">
             <div class="container-fluid">
                 <div class="row mb-2">
                     <div class="col-sm-6">
-                        <h1 class="m-0 text-dark">{{ $pageHeader ?? '' }}</h1>
+                        <h1 class="m-0 text-dark">{{ $pageHeader }}</h1>
                     </div>
                 </div>
             </div>
         </div>
+        @endif
 
         <section class="content">
             <div class="container-fluid">
@@ -364,6 +367,129 @@
 <script src="{{asset('assets-dashboard/js/tom-select.complete.min.js')}}"></script>
 
 @livewireScripts
+{{-- Flux, used by the Profile and Appearance settings pages (from the starter kit). --}}
+@fluxScripts
+
+{{--
+    PDTS's own confirmation box, used by every wire:confirm instead of the
+    browser's plain "localhost says" pop-up. The message is the wire:confirm
+    text; the confirming button says what it does ("Yes, remove").
+--}}
+<div id="pdts-confirm" class="pdts-confirm" role="dialog" aria-modal="true" aria-labelledby="pdts-confirm-title" aria-describedby="pdts-confirm-message" hidden>
+    <div class="pdts-confirm-backdrop" data-confirm-dismiss></div>
+    <div class="pdts-confirm-box">
+        <div class="pdts-confirm-icon" aria-hidden="true"><i class="fas fa-question"></i></div>
+        <h2 id="pdts-confirm-title" class="pdts-confirm-title">Please confirm</h2>
+        <p id="pdts-confirm-message" class="pdts-confirm-message"></p>
+        <div class="pdts-confirm-actions">
+            <button type="button" class="btn btn-light border" data-confirm-dismiss>No, go back</button>
+            <button type="button" class="btn" data-confirm-accept>Yes</button>
+        </div>
+    </div>
+</div>
+<style>
+    .pdts-confirm { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .pdts-confirm[hidden] { display: none; }
+    .pdts-confirm-backdrop { position: absolute; inset: 0; background: rgba(9, 30, 32, .45); animation: pdtsFade .15s ease-out; }
+    .pdts-confirm-box { position: relative; width: 100%; max-width: 27rem; background: #fff; border-radius: .875rem; box-shadow: 0 18px 50px rgba(9, 63, 66, .28); padding: 1.5rem 1.5rem 1.25rem; text-align: center; animation: pdtsRise .18s ease-out; }
+    .pdts-confirm-icon { width: 3rem; height: 3rem; margin: 0 auto .75rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; background: #e2eeee; color: {{ config('theme.color_sidebar', '#093f42') }}; }
+    .pdts-confirm.is-danger .pdts-confirm-icon { background: #fde8e7; color: #b4332d; }
+    .pdts-confirm-title { font-size: 1.125rem; font-weight: 700; margin: 0 0 .5rem; color: #1f2d2d; }
+    .pdts-confirm-message { font-size: .9375rem; color: #4a5a5a; margin: 0 0 1.25rem; white-space: pre-line; }
+    .pdts-confirm-actions { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; }
+    .pdts-confirm-actions .btn { min-width: 8.5rem; font-weight: 600; }
+    .pdts-confirm [data-confirm-accept] { background: {{ config('theme.color_sidebar', '#093f42') }}; border-color: {{ config('theme.color_sidebar', '#093f42') }}; color: #fff; }
+    .pdts-confirm.is-danger [data-confirm-accept] { background: #c0392b; border-color: #c0392b; }
+    @keyframes pdtsFade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pdtsRise { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+</style>
+<script>
+    (() => {
+        // Once per browser tab: pages opened in place (wire:navigate) run this again.
+        if (window.pdtsConfirm) return;
+
+        // First words that mean something is taken away or ended: shown in red.
+        const dangerous = /^(remove|delete|discard|cancel|suspend|end|reset|reject|give up|revoke)\b/i;
+        // What the confirming button says: "Yes, remove", "Yes, send"...; otherwise "Yes, continue".
+        const verbs = /^(remove|delete|discard|cancel|suspend|end|reset|reject|revoke|send|approve|reinstate|resend|issue|sign|complete|stop|give up)\b/i;
+        let pending = null;
+        let lastFocus = null;
+        // The box is looked up each time: a page opened in place brings a new one.
+        const box = () => document.getElementById('pdts-confirm');
+
+        const close = () => {
+            const dialog = box();
+            if (dialog) dialog.hidden = true;
+            pending = null;
+            document.removeEventListener('keydown', onKey, true);
+            if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+        };
+        const onKey = (e) => {
+            const dialog = box();
+            if (!dialog) return;
+            if (e.key === 'Escape') { e.preventDefault(); close(); }
+            if (e.key === 'Tab') { // keep the focus inside the box
+                const buttons = [...dialog.querySelectorAll('button')];
+                const i = buttons.indexOf(document.activeElement);
+                e.preventDefault();
+                buttons[(i + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
+            }
+        };
+
+        // PDTS's question: the box, and onYes when "Yes" is pressed. Without the box
+        // on the page (it should always be there), the browser's own question asks instead.
+        window.pdtsConfirm = (text, onYes) => {
+            const dialog = box();
+            if (!dialog) {
+                if (window.confirm(text)) onYes();
+                return;
+            }
+            const accept = dialog.querySelector('[data-confirm-accept]');
+            const verb = (text.match(verbs) || [])[0];
+            const danger = dangerous.test(text) || /^completion is final/i.test(text);
+            dialog.classList.toggle('is-danger', danger);
+            dialog.querySelector('.pdts-confirm-icon i').className = danger ? 'fas fa-exclamation' : 'fas fa-question';
+            dialog.querySelector('#pdts-confirm-title').textContent = danger ? 'Are you sure?' : 'Please confirm';
+            dialog.querySelector('#pdts-confirm-message').textContent = text;
+            accept.textContent = verb ? 'Yes, ' + verb.toLowerCase() : (/^completion/i.test(text) ? 'Yes, complete' : 'Yes, continue');
+            pending = onYes;
+            lastFocus = document.activeElement;
+            dialog.hidden = false;
+            document.addEventListener('keydown', onKey, true);
+            (danger ? dialog.querySelector('[data-confirm-dismiss].btn') : accept).focus();
+        };
+
+        window.addEventListener('click', (e) => {
+            // The box's own buttons (looked up by what they are, so a new box works too).
+            if (e.target.closest('#pdts-confirm [data-confirm-accept]')) {
+                const go = pending;
+                close();
+                if (go) go();
+
+                return;
+            }
+            if (e.target.closest('#pdts-confirm [data-confirm-dismiss]')) {
+                close();
+
+                return;
+            }
+
+            // Every element with wire:confirm: the click is held, the box asks, and on "Yes"
+            // the same click is made again with the browser's own question switched off.
+            // On the window, so nothing on a page sees the click before the box does.
+            const el = e.target.closest('[wire\\:confirm]');
+            if (!el || el.__pdtsConfirmed) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            window.pdtsConfirm((el.getAttribute('wire:confirm') || 'Are you sure?').replaceAll('\\n', '\n'), () => {
+                el.__livewire_confirm = (action) => action();
+                el.__pdtsConfirmed = true;
+                el.click();
+                el.__pdtsConfirmed = false;
+            });
+        }, true);
+    })();
+</script>
 
 @stack('custom-scripts')
 <script>

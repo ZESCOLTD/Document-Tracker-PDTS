@@ -4,7 +4,7 @@ namespace App\Livewire\Pdts\Organization;
 
 use App\Models\PdtsUserDelegation;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Services\Pdts\Signatures\PreparedDocuments;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -16,12 +16,23 @@ class Delegations extends Component
     protected string $paginationTheme = 'bootstrap';
 
     public string $search = '';
+
     public string $principalUserId = '';
+
     public string $delegateUserId = '';
+
     public string $startsAt = '';
+
     public string $expiresAt = '';
+
     public string $reason = '';
+
     public bool $showHistory = false;
+
+    // What the delegation allows: receiving documents (acknowledging) and/or preparing documents to sign.
+    public bool $canReceive = true;
+
+    public bool $canPrepare = false;
 
     public function mount(): void
     {
@@ -52,12 +63,26 @@ class Delegations extends Component
 
         if ($principalId === $delegateId) {
             $this->addError('delegateUserId', 'A user cannot delegate acknowledgement to themselves.');
+
+            return;
+        }
+
+        if (! $this->canReceive && ! $this->canPrepare) {
+            $this->addError('canReceive', 'Choose what the delegation allows.');
+
             return;
         }
 
         $delegate = User::findOrFail($delegateId);
-        if (! $delegate->can('documents.acknowledge')) {
+        if ($this->canReceive && ! $delegate->can('documents.acknowledge')) {
             $this->addError('delegateUserId', 'The delegate must have permission to acknowledge documents.');
+
+            return;
+        }
+
+        if ($this->canPrepare && ! User::findOrFail($principalId)->canHavePreparers()) {
+            $this->addError('canPrepare', 'Only Directors, Senior Managers and Managers can have someone prepare documents for them.');
+
             return;
         }
 
@@ -67,6 +92,7 @@ class Delegations extends Component
         $overlap = PdtsUserDelegation::query()
             ->where('principal_user_id', $principalId)
             ->where('delegate_user_id', $delegateId)
+            ->where(fn ($query) => $query->when($this->canReceive, fn ($q) => $q->orWhere('can_receive', true))->when($this->canPrepare, fn ($q) => $q->orWhere('can_prepare', true)))
             ->whereNull('revoked_at')
             ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', $startsAt))
             ->when($expiresAt, fn ($query) => $query->where('starts_at', '<', $expiresAt))
@@ -74,19 +100,22 @@ class Delegations extends Component
 
         if ($overlap) {
             $this->addError('delegateUserId', 'An overlapping delegation already exists for this pair of users.');
+
             return;
         }
 
         PdtsUserDelegation::create([
             'principal_user_id' => $principalId,
             'delegate_user_id' => $delegateId,
+            'can_receive' => $this->canReceive,
+            'can_prepare' => $this->canPrepare,
             'granted_by' => auth()->id(),
             'starts_at' => $startsAt,
             'expires_at' => $expiresAt,
             'reason' => filled($validated['reason']) ? trim($validated['reason']) : null,
         ]);
 
-        session()->flash('success', 'Acknowledgement delegation created.');
+        session()->flash('success', 'Delegation created.');
         $this->reset(['principalUserId', 'delegateUserId', 'expiresAt', 'reason']);
         $this->startsAt = now()->format('Y-m-d\TH:i');
     }
@@ -94,7 +123,7 @@ class Delegations extends Component
     public function revoke(int $id): void
     {
         $delegation = PdtsUserDelegation::query()->whereNull('revoked_at')->findOrFail($id);
-        $delegation->update(['revoked_at' => now()]);
+        app(PreparedDocuments::class)->revoke($delegation, auth()->user());
         session()->flash('success', 'Delegation revoked. Its history has been retained.');
     }
 
@@ -117,6 +146,6 @@ class Delegations extends Component
         return view('livewire.pdts.organization.delegations', [
             'delegations' => $delegations,
             'users' => User::query()->where('is_banned', false)->orderBy('name')->get(['id', 'name', 'man_no']),
-        ])->layout('layouts.master', ['title' => 'Acknowledgement Delegations']);
+        ])->layout('layouts.master', ['title' => 'Delegations']);
     }
 }

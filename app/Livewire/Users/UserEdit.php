@@ -3,26 +3,65 @@
 namespace App\Livewire\Users;
 
 use App\Actions\Users\ChangeUserRole;
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
+use App\Services\Pdts\Signatures\SignatureProfile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Livewire\Component;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
+use Livewire\Component;
 
 class UserEdit extends Component
 {
     public User $user;
 
     // Standard Fields
-    public $name, $email, $mobile_no, $man_no, $password;
+    public $name;
+
+    public $email;
+
+    public $mobile_no;
+
+    public $man_no;
+
+    public $password;
 
     // Spatie role name; empty means no role.
     public string $role = '';
 
     // 🔥 Added Missing PHRIS/Organization Fields
-    public $directorate, $division, $location, $section, $job_title, $grade, $station;
+    public $directorate;
+
+    public $division;
+
+    public $location;
+
+    public $section;
+
+    public $job_title;
+
+    public $grade;
+
+    public $station;
+
+    /**
+     * Clears a forgotten signature PIN/password. The person then sets a new
+     * one with their login password; they are told by email, and it is
+     * recorded with the administrator's name. The signature image stays.
+     */
+    public function resetSignatureSecret(SignatureProfile $profile): void
+    {
+        abort_unless(Auth::user()->can('users.manage'), 403);
+
+        if (! $this->user->signature_pin) {
+            return;
+        }
+
+        $profile->resetByAdministrator($this->user, Auth::user());
+        $this->user->refresh();
+        session()->flash('success', "{$this->user->name}'s signature PIN/password was reset. They have been told by email and can set a new one under My Signature.");
+    }
 
     public function mount(User $user)
     {
@@ -48,38 +87,38 @@ class UserEdit extends Component
     public function update()
     {
         $rules = [
-            'name'      => 'required|string|max:255',
-            'email'     => 'required|email|unique:users,email,' . $this->user->id,
-            'role'      => ChangeUserRole::rule(),
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,'.$this->user->id,
+            'role' => ChangeUserRole::rule(),
             'mobile_no' => 'nullable|string',
-            'man_no'    => 'nullable|string',
+            'man_no' => 'nullable|string',
             // Validation for the organizational fields
             'directorate' => 'nullable|string',
-            'job_title'   => 'nullable|string',
+            'job_title' => 'nullable|string',
         ];
 
-        if (!empty($this->password)) {
+        if (! empty($this->password)) {
             $rules['password'] = ['required', Password::defaults()];
         }
 
         $this->validate($rules);
 
         $data = [
-            'name'               => $this->name,
-            'email'              => $this->email,
-            'mobile_no'          => $this->mobile_no,
-            'man_no'             => $this->man_no,
+            'name' => $this->name,
+            'email' => $this->email,
+            'mobile_no' => $this->mobile_no,
+            'man_no' => $this->man_no,
             // 🔥 Include the organizational data in the update array
-            'directorate'        => $this->directorate,
-            'division'           => $this->division,
-            'location'           => $this->location,
+            'directorate' => $this->directorate,
+            'division' => $this->division,
+            'location' => $this->location,
             'functional_section' => $this->section,
-            'job_title'          => $this->job_title,
-            'grade'              => $this->grade,
-            'station'            => $this->station,
+            'job_title' => $this->job_title,
+            'grade' => $this->grade,
+            'station' => $this->station,
         ];
 
-        if (!empty($this->password)) {
+        if (! empty($this->password)) {
             $data['password'] = Hash::make($this->password);
         }
 
@@ -96,7 +135,7 @@ class UserEdit extends Component
     public function render()
     {
         return view('livewire.users.edit', [
-            'roles' => Role::all()
+            'roles' => Role::all(),
         ])->layout('layouts.master');
     }
 }

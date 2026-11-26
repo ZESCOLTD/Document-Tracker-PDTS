@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Pdts;
 
+use App\Services\Ai\AiTimeLimit;
 use App\Services\Ai\DocumentOcrClient;
 use App\Services\Ai\OcrTextFormatter;
 use Illuminate\Support\Facades\Auth;
@@ -50,7 +51,7 @@ class OcrWorkbench extends Component
 
         $this->reset(['analysis', 'uploadedFilename', 'analysisError', 'formattedBlocks', 'formattingError']);
         $this->validate();
-        set_time_limit(max(30, (int) config('services.pdts_ai.timeout', 180) + 15));
+        AiTimeLimit::allow(max(30, (int) config('services.pdts_ai.timeout', 180) + 15));
 
         try {
             $this->analysis = $ocr->review($this->document);
@@ -69,7 +70,7 @@ class OcrWorkbench extends Component
         }
 
         $this->formattingError = null;
-        set_time_limit(max(30, (int) config('services.azure_openai.timeout', 90) + 15));
+        AiTimeLimit::allow(max(30, (int) config('services.azure_openai.timeout', 90) + 15));
 
         try {
             $this->formattedBlocks = $formatter->format($this->analysis['text']);

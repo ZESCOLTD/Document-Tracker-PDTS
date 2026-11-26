@@ -5,11 +5,11 @@
 
     @if ($canForward && $showTrigger)
         <div class="text-right">
-            <button type="button" class="btn btn-sm btn-primary text-white" wire:click="openForm">
-                <i class="fas fa-share mr-1"></i>Forward
+            <button type="button" class="btn btn-sm btn-primary text-white" wire:click="openForm" data-test="forward-button">
+                <i class="fas fa-share mr-1"></i>{{ $suggested ? 'Forward to '.$suggested->name : 'Forward' }}
             </button>
         </div>
-    @elseif ($showTrigger && ! $notice && $document?->status === \App\Enums\DocumentStatus::AwaitingReceipt)
+    @elseif ($showTrigger && ! $quiet && ! $notice && $document?->status === \App\Enums\DocumentStatus::AwaitingReceipt)
         <div class="text-right small text-muted">Waiting for receipt</div>
     @endif
 
@@ -37,6 +37,9 @@
                                         <span>
                                             {{ $selectedRecipient->name }}
                                             <span class="small text-muted d-block">{{ $selectedRecipient->man_no }} {{ $selectedRecipient->job_title }}</span>
+                                            @if ($suggested && (int) $suggested->id === (int) $selectedRecipient->id)
+                                                <span class="badge badge-light border mt-1" data-test="for-recipient"><i class="fas fa-user-check mr-1"></i>The person this document is for</span>
+                                            @endif
                                         </span>
                                         <button type="button" class="btn btn-sm btn-link" wire:click="clearRecipient">Change</button>
                                     </div>

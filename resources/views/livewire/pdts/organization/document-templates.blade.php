@@ -3,12 +3,6 @@
 @endphp
 <div class="container-fluid py-4">
     <style>
-        .tpl-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-        @media (max-width: 767.98px) { .tpl-steps { grid-template-columns: 1fr; } }
-        .tpl-step { display: flex; gap: .75rem; align-items: flex-start; }
-        .tpl-step-no { width: 1.75rem; height: 1.75rem; flex-shrink: 0; border-radius: 50%; background: {{ $teal }}; color: #fff; font-weight: 700; font-size: .8125rem; display: flex; align-items: center; justify-content: center; }
-        .tpl-advanced summary { cursor: pointer; font-weight: 600; color: {{ $teal }}; font-size: .875rem; }
-        .tpl-advanced summary::marker { color: {{ $teal }}; }
 
         .tpl-drop { position: relative; border: 2px dashed #c9d6d6; border-radius: .875rem; background: #f7fafa; padding: 1.75rem 1rem; text-align: center; transition: border-color .15s, background .15s; }
         .tpl-drop.is-over, .tpl-drop:hover { border-color: {{ $teal }}; background: #eef5f5; }
@@ -23,7 +17,7 @@
 
     <div class="mb-4">
         <h1 class="h3 mb-1">Document Templates</h1>
-        <p class="text-muted mb-0">ZESCO's own templates (Word or PDF) for internal documents. Upload one as it is, then place the QR code on a preview.</p>
+        <p class="text-muted mb-0">Templates for internal documents. Upload ZESCO's own (Word or PDF) as it is, or build one in PDTS like a form.</p>
     </div>
 
     @if (session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
@@ -32,58 +26,75 @@
     <section class="bg-white border rounded p-3 mb-4">
         <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: .5rem;">
             <h2 class="h5 mb-0">Templates</h2>
-            <button type="button" class="btn btn-primary btn-sm" wire:click="openCreate"><i class="fas fa-upload mr-1"></i>Upload template</button>
+            <div class="d-flex flex-wrap" style="gap: .5rem;">
+                <a href="{{ route('pdts.organization.document-templates.guide') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-book-open mr-1"></i>How to prepare a template</a>
+                <a href="{{ route('pdts.organization.document-templates.build') }}" class="btn btn-outline-primary btn-sm" data-test="build-template"><i class="fas fa-th-list mr-1"></i>Build a template</a>
+                <button type="button" class="btn btn-primary btn-sm" wire:click="openCreate"><i class="fas fa-upload mr-1"></i>Upload template</button>
+            </div>
         </div>
         <div class="table-responsive actions-overflow">
             <table class="table table-hover mb-0">
                 <thead>
-                    <tr><th>Name</th><th>Document type</th><th>File</th><th>Form asks for · QR code</th><th>Documents</th><th>Status</th><th class="text-right">Actions</th></tr>
+                    <tr><th>Name</th><th>Document type</th><th>File</th><th>Documents</th><th>Status</th><th class="text-right">Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse ($templates as $template)
                         <tr wire:key="template-{{ $template->id }}">
                             <td>
                                 {{ $template->name }}
+                                @if ($template->version > 1)<span class="badge badge-light border ml-1">v{{ $template->version }}</span>@endif
                                 @if ($template->description)<div class="small text-muted">{{ $template->description }}</div>@endif
                             </td>
                             <td>{{ $template->documentType?->name ?? 'Chosen by the author' }}</td>
                             <td>
-                                <span class="small"><i class="fas {{ $template->isPdf() ? 'fa-file-pdf text-danger' : 'fa-file-word text-primary' }} mr-1"></i>{{ $template->original_filename }}</span>
+                                @if ($template->isBuilt())
+                                    <span class="small"><i class="fas fa-th-list mr-1" style="color: {{ $teal }};"></i>Built in PDTS</span>
+                                @else
+                                    <span class="small"><i class="fas {{ $template->isPdf() ? 'fa-file-pdf text-danger' : 'fa-file-word text-primary' }} mr-1"></i>{{ $template->original_filename }}</span>
+                                @endif
                                 @if ($template->uploader)
                                     <div class="small text-muted">by {{ $template->uploader->name }}, {{ $template->updated_at->format('d M Y') }}</div>
                                 @endif
                             </td>
-                            <td class="small">
-                                @if ($template->isConfigured())
-                                    {{ $template->isPdf() ? 'Subject (details are written on the paper)' : \App\Livewire\Pdts\Organization\DocumentTemplates::formFieldSummary($template) }}
-                                    <div class="text-muted mt-1"><i class="fas fa-qrcode mr-1" aria-hidden="true"></i>{{ $template->qrLabel() }}</div>
-                                @else
-                                    <a href="{{ route('pdts.organization.document-templates.qr', $template) }}" class="btn btn-sm btn-warning"><i class="fas fa-qrcode mr-1"></i>Place the QR code</a>
-                                    <div class="text-muted mt-1">Not offered to authors until the QR code is placed.</div>
-                                @endif
-                            </td>
+
                             <td>{{ $template->documents_count }}</td>
                             <td>
+                                {{-- What still needs doing, one click away. --}}
                                 @if (! $template->isConfigured())
                                     <span class="badge badge-warning">Needs QR code</span>
+                                    <a href="{{ route('pdts.organization.document-templates.qr', $template) }}" class="small d-block mt-1">Place the QR code</a>
+                                @elseif (! $template->is_active && $template->signingBlocker())
+                                    <span class="badge badge-warning">Needs a signature spot</span>
+                                    <a href="{{ route('pdts.organization.document-templates.review', $template) }}" class="small d-block mt-1">Sort it out</a>
                                 @else
                                     <span class="badge {{ $template->is_active ? 'badge-success' : 'badge-secondary' }}">{{ $template->is_active ? 'Active' : 'Inactive' }}</span>
                                 @endif
                             </td>
                             <td class="text-right">
                                 <x-pdts.row-actions>
+                                    {{-- View: a quick look at the template with its QR code. The review page: what PDTS found, the form, Try it. --}}
                                     <a class="dropdown-item" role="menuitem" href="{{ route('pdts.organization.document-templates.view', $template) }}"><i class="fas fa-eye fa-fw mr-2 text-muted" aria-hidden="true"></i>View</a>
-                                    @unless ($template->documents_count)
-                                        <a class="dropdown-item" role="menuitem" href="{{ route('pdts.organization.document-templates.qr', $template) }}"><i class="fas fa-qrcode fa-fw mr-2 text-muted" aria-hidden="true"></i>{{ $template->isConfigured() ? 'Move QR code' : 'Place QR code' }}</a>
-                                    @endunless
-                                    <x-pdts.row-action icon="fa-pen" wire:click="edit({{ $template->id }})">Edit details</x-pdts.row-action>
-                                    @if ($template->storage_path)
-                                        <a class="dropdown-item" role="menuitem" href="{{ route('pdts.organization.document-templates.download', $template) }}"><i class="fas fa-download fa-fw mr-2 text-muted" aria-hidden="true"></i>Download prepared file</a>
+                                    @if ($template->isConfigured())
+                                        <a class="dropdown-item" role="menuitem" href="{{ route('pdts.organization.document-templates.review', $template) }}"><i class="fas fa-clipboard-check fa-fw mr-2 text-muted" aria-hidden="true"></i>{{ $template->isBuilt() ? 'Check and try it' : 'Form settings and try it' }}</a>
                                     @endif
-                                    <a class="dropdown-item" role="menuitem" href="{{ route('pdts.organization.document-templates.original', $template) }}" target="_blank" rel="noopener"><i class="fas fa-file fa-fw mr-2 text-muted" aria-hidden="true"></i>Open original</a>
+                                    @if ($template->isBuilt() && ! $template->isSuperseded())
+                                        <a class="dropdown-item" role="menuitem" href="{{ route('pdts.organization.document-templates.edit-design', $template) }}"><i class="fas fa-th-list fa-fw mr-2 text-muted" aria-hidden="true"></i>Edit in the builder</a>
+                                    @endif
+                                    {{-- Uploaded files only: a built template's QR code is placed in the builder. --}}
+                                    @if (! $template->documents_count && ! $template->isBuilt())
+                                        <a class="dropdown-item" role="menuitem" href="{{ route('pdts.organization.document-templates.qr', $template) }}"><i class="fas fa-qrcode fa-fw mr-2 text-muted" aria-hidden="true"></i>{{ $template->isConfigured() ? 'Move QR code' : 'Place QR code' }}</a>
+                                    @endif
+                                    {{-- Uploaded files only: a built template's name, type and content are set in the builder. --}}
+                                    @unless ($template->isBuilt())
+                                        <x-pdts.row-action icon="fa-pen" wire:click="edit({{ $template->id }})">{{ $template->documents_count ? 'Rename or upload a new version' : 'Rename or replace the file' }}</x-pdts.row-action>
+                                    @endunless
                                     @if ($template->isConfigured())
                                         <x-pdts.row-action icon="{{ $template->is_active ? 'fa-toggle-off' : 'fa-toggle-on' }}" wire:click="toggleActive({{ $template->id }})">{{ $template->is_active ? 'Deactivate' : 'Activate' }}</x-pdts.row-action>
                                     @endif
+                                    @unless ($template->isBuilt())
+                                        {{-- The file exactly as uploaded, to edit in Word and upload again. --}}
+                                        <a class="dropdown-item" role="menuitem" href="{{ route('pdts.organization.document-templates.original', $template) }}" download><i class="fas fa-file-download fa-fw mr-2 text-muted" aria-hidden="true"></i>{{ $template->isPdf() ? 'Download the PDF' : 'Download the Word file' }}</a>
+                                    @endunless
                                     <div class="dropdown-divider"></div>
                                     <x-pdts.row-action icon="fa-trash-alt" danger wire:click="delete({{ $template->id }})"
                                         wire:confirm="{{ $template->documents_count
@@ -93,36 +104,17 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted py-4">No templates yet. Upload ZESCO's Word or PDF template to start.</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-4">No templates yet. Upload ZESCO's Word or PDF template to start.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </section>
 
-    <section class="bg-white border rounded p-3">
-        <h2 class="h5 mb-3">How templates work</h2>
-        <div class="tpl-steps">
-            <div class="tpl-step"><span class="tpl-step-no">1</span><div><strong>Upload the template as it is</strong><div class="text-muted small">Word (.docx) or PDF. PDTS keeps the original exactly as uploaded.</div></div></div>
-            <div class="tpl-step"><span class="tpl-step-no">2</span><div><strong>Place the QR code on a preview</strong><div class="text-muted small">Drag it to a free spot, pick the page and size, and download a sample to check.</div></div></div>
-            <div class="tpl-step"><span class="tpl-step-no">3</span><div><strong>Save, and authors can use it</strong><div class="text-muted small">For Word, PDTS also fills the TO, FROM, CC, REF, DATE and SUBJECT lines it finds.</div></div></div>
-        </div>
-
-        <details class="tpl-advanced mt-3">
-            <summary>Advanced: place other details yourself (Word only)</summary>
-            <p class="text-muted small mt-2 mb-2">Optional. Type a placeholder in the Word file where a detail should go. Any other name, for example <code>${amount}</code> or <code>${due_date}</code>, becomes an extra field on the form ("Amount", "Due date"). Use lower-case letters, numbers and underscores.</p>
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <thead><tr><th>Placeholder</th><th>Becomes</th></tr></thead>
-                    <tbody>
-                        @foreach ($placeholders as $key => $meaning)
-                            <tr><td><code>${{ '{' }}{{ $key }}{{ '}' }}</code></td><td>{{ $meaning }}</td></tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </details>
-    </section>
+    <p class="small text-muted mb-0" data-test="templates-help">
+        <i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Upload ZESCO's own Word file as it is, or build a template in PDTS. See
+        <a href="{{ route('pdts.organization.document-templates.guide') }}">how to prepare a template</a> for the rules PDTS follows.
+    </p>
 
     @if ($showForm)
         @php
@@ -176,9 +168,10 @@
                         </div>
                         <button type="button" class="btn btn-sm btn-light" wire:click="removeFile" aria-label="Remove file"><i class="fas fa-times"></i></button>
                     </div>
-                @elseif ($locked)
-                    <div class="small text-muted"><i class="fas fa-lock mr-1"></i>Documents were made from this template, so its file can't be replaced. Upload it as a new template instead.</div>
                 @else
+                    @if ($locked)
+                        <div class="small text-muted mb-2" data-test="new-version-note"><i class="fas fa-code-branch mr-1"></i>Documents were made from this template. A new file becomes <strong>version {{ ($editing?->version ?? 1) + 1 }}</strong>; the documents made so far keep this version.</div>
+                    @endif
                     <div class="tpl-drop" x-data="{ over: false, uploading: false, progress: 0 }"
                          :class="{ 'is-over': over }"
                          x-on:dragenter="over = true" x-on:dragleave="over = false" x-on:drop="over = false"

@@ -6,7 +6,7 @@ use App\Services\Ai\DocumentConversation;
 use App\Services\Ai\DocumentMetadataExtractor;
 use App\Services\Ai\OcrTextFormatter;
 use Illuminate\Config\Repository;
-use Illuminate\Container\Container;
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -259,7 +259,9 @@ it('rejects unusable successful responses', function (array $body) {
 
 it('checks connectivity using only the fixed prompt without booting the application', function (bool $successful) {
     $this->http->fake(['*' => $this->http->response($successful ? $this->answer : [], $successful ? 200 : 401)]);
-    $container = new Container;
+    // A bare application (not booted): console commands ask it whether tests are running.
+    $container = new Application(dirname(__DIR__, 2));
+    $container->instance('env', 'testing');
     $container->instance(AzureOpenAiClient::class, $this->client);
     $command = new AzureOpenAiCheckCommand;
     $command->setLaravel($container);

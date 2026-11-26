@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Pdts\Documents\Index;
 use App\Livewire\Pdts\Documents\Registration;
 use App\Models\PdtsDepartment;
 use App\Models\PdtsDirectorate;
@@ -107,4 +108,34 @@ test('document registration route is restricted to users with registration permi
     $this->actingAs($viewer)
         ->get(route('pdts.documents.register'))
         ->assertForbidden();
+});
+
+test('the documents list shows each document without repeating itself', function () {
+    $make = fn (array $extra) => PdtsDocument::create(array_merge([
+        'reference_number' => 'OMTS-'.now()->format('Y').'-'.fake()->unique()->numerify('####'),
+        'document_type_id' => $this->documentType->id,
+        'originating_directorate' => 'Operations Directorate',
+        'originating_department' => 'Operations',
+        'originating_office' => 'Lusaka Main Office',
+        'registered_by' => $this->registrar->id,
+        'current_custodian_id' => $this->registrar->id,
+        'status' => 'registered',
+        'registered_at' => now(),
+    ], $extra));
+
+    $make(['title' => 'Fuel request', 'subject' => 'Fuel request']);
+    $make(['title' => 'Field inspection memorandum', 'subject' => 'Inspection results']);
+    $make(['title' => 'Monthly report', 'subject' => 'Monthly report', 'status' => 'draft']);
+
+    $html = Livewire::test(Index::class)
+        ->assertSeeHtml('<th>Date</th>')
+        ->assertSee('Inspection results')
+        ->assertSeeHtml('<th>Department</th>')->assertDontSee('Lusaka Main Office')
+        ->html();
+
+    // A subject that only repeats the title is not shown again.
+    expect(substr_count($html, 'Fuel request'))->toBe(1)
+        ->and(substr_count($html, 'Monthly report'))->toBe(1)
+        // Only the draft's date says, when pointed at, that it is when it was created.
+        ->and(substr_count($html, 'title="Created '))->toBe(1);
 });

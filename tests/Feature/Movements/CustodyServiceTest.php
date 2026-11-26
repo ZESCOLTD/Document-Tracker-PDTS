@@ -566,6 +566,7 @@ test('statuses have plain-English labels for the tracking pages', function () {
         'Sent, not received yet',
         'Received',
         'Completed',
+        'Cancelled',
     ]);
 });
 

@@ -4,6 +4,7 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Http\Controllers\CoverSheetController;
 use App\Http\Controllers\DocumentTemplateDownloadController;
 use App\Http\Controllers\DocumentTemplateOriginalController;
+use App\Http\Controllers\DocumentVersionController;
 use App\Http\Controllers\InternalDocumentWordController;
 use App\Http\Controllers\PdtsDocumentAttachmentController;
 use App\Http\Controllers\ScanLogoutController;
@@ -12,6 +13,7 @@ use App\Http\Middleware\ScanPageAccess;
 use App\Livewire\Admin\EmailLogIndex;
 use App\Livewire\Notifications\Index;
 use App\Livewire\Pdts\Dashboard;
+use App\Livewire\Pdts\Documents\Archive;
 use App\Livewire\Pdts\Documents\DocumentAiPanel;
 use App\Livewire\Pdts\Documents\Index as PdtsDocumentIndex;
 use App\Livewire\Pdts\Documents\InternalDocument;
@@ -25,17 +27,28 @@ use App\Livewire\Pdts\Organization\DocumentTemplates;
 use App\Livewire\Pdts\Organization\DocumentTypes;
 use App\Livewire\Pdts\Organization\EmployeeAssignments as PdtsEmployeeAssignments;
 use App\Livewire\Pdts\Organization\Offices as PdtsOffices;
+use App\Livewire\Pdts\Organization\TemplateBuilder;
 use App\Livewire\Pdts\Organization\TemplateQrSetup;
+use App\Livewire\Pdts\Organization\TemplateReview;
 use App\Livewire\Pdts\Organization\TemplateView;
 use App\Livewire\Pdts\ScanPage;
+use App\Livewire\Pdts\Signatures\SignatureRequests;
+use App\Livewire\Pdts\Signatures\VerificationQueue;
+use App\Livewire\Settings\MySignature;
 use App\Livewire\Settings\NotificationPreferences;
 use App\Livewire\Support\AdminChatCenter;
 use App\Livewire\Users\UserCreate;
 use App\Livewire\Users\UserEdit;
 use App\Livewire\Users\UserIndex;
 use App\Livewire\Users\UserShow;
+use App\Models\PdtsDocumentTemplate;
+use App\Models\UserSignatureImage;
+use App\Services\Pdts\Templates\TemplateSetup;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Http\Controllers\RegisteredUserController;
 
@@ -144,6 +157,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->whereNumber('template')
         ->middleware('can:document_types.manage')
         ->name('pdts.organization.document-templates.download');
+    // The Template Builder: design a template in PDTS, like a form.
+    Route::get('/organization/document-templates/build', TemplateBuilder::class)
+        ->middleware('can:document_types.manage')
+        ->name('pdts.organization.document-templates.build');
+    Route::get('/organization/document-templates/{template}/build', TemplateBuilder::class)
+        ->whereNumber('template')
+        ->middleware('can:document_types.manage')
+        ->name('pdts.organization.document-templates.edit-design');
     // Place the QR code on a preview of the uploaded template, then save it.
     Route::get('/organization/document-templates/{template}/qr', TemplateQrSetup::class)
         ->whereNumber('template')
@@ -154,6 +175,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->whereNumber('template')
         ->middleware('can:document_types.manage')
         ->name('pdts.organization.document-templates.view');
+    // After saving: what PDTS found, how the form looks, and "Try it".
+    Route::get('/organization/document-templates/{template}/review', TemplateReview::class)
+        ->whereNumber('template')
+        ->middleware('can:document_types.manage')
+        ->name('pdts.organization.document-templates.review');
+    Route::get('/organization/document-templates/{template}/sample.pdf', function (PdtsDocumentTemplate $template, TemplateSetup $setup) {
+        $pdf = $setup->samplePdf($template);
+        abort_if($pdf === null, 404);
+
+        return response($pdf, 200, ['Content-Type' => 'application/pdf', 'Cache-Control' => 'private, no-store']);
+    })->whereNumber('template')->middleware('can:document_types.manage')->name('pdts.organization.document-templates.sample-pdf');
+    // The builder's "Preview" of a design not yet saved: kept briefly, for the person who made it.
+    Route::get('/organization/document-templates/preview/{token}.pdf', function (string $token) {
+        $preview = Cache::get('pdts.builder-preview.'.$token);
+        abort_unless(is_array($preview) && (int) $preview['user'] === (int) auth()->id(), 404);
+
+        return response(base64_decode($preview['pdf']), 200, ['Content-Type' => 'application/pdf', 'Cache-Control' => 'private, no-store']);
+    })->where('token', '[A-Za-z0-9]{40}')->middleware('can:document_types.manage')->name('pdts.organization.document-templates.builder-preview');
+    // How to prepare a Word template that PDTS reads well.
+    Route::get('/organization/document-templates/guide', fn () => view('layouts.master', [
+        'title' => 'Preparing a template',
+        'slot' => new HtmlString(view('pdts.template-guide')->render()),
+    ]))
+        ->middleware('can:document_types.manage')
+        ->name('pdts.organization.document-templates.guide');
     // The file exactly as uploaded, shown in that preview.
     Route::get('/organization/document-templates/{template}/original', DocumentTemplateOriginalController::class)
         ->whereNumber('template')
@@ -161,6 +207,44 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('pdts.organization.document-templates.original');
     Route::get('/notifications', Index::class)->name('notifications.index');
     Route::get('/settings/notifications', NotificationPreferences::class)->name('settings.notifications');
+    // Prepare on behalf of: editing a draft (by its preparer), and the signature lists.
+    Route::get('/documents/{document}/edit-draft', InternalDocument::class)
+        ->whereNumber('document')
+        ->middleware('can:documents.register')
+        ->name('pdts.documents.internal.edit');
+    Route::get('/signatures', SignatureRequests::class)->name('pdts.signatures');
+    // Closed documents: completed (filed, kept until), due for review, cancelled.
+    Route::get('/documents/archive', Archive::class)
+        ->middleware('can:documents.view')
+        ->name('pdts.documents.archive');
+    // Internal documents sent to me in PDTS: decisions, for me, copies.
+    // ICT verifies uploaded signatures before they can be used.
+    Route::get('/signatures/verification', VerificationQueue::class)
+        ->middleware('can:signatures.verify')
+        ->name('pdts.signatures.verification');
+    Route::get('/signatures/verification/images/{image}', function (UserSignatureImage $image) {
+        abort_unless(Storage::disk('private')->exists($image->storage_path), 404);
+
+        return response(Storage::disk('private')->get($image->storage_path), 200, [
+            'Content-Type' => str_ends_with($image->storage_path, '.png') ? 'image/png' : 'image/jpeg',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    })->whereNumber('image')->middleware('can:signatures.verify')->name('pdts.signatures.verification.image');
+    Route::get('/documents/{document}/versions/{version}', DocumentVersionController::class)
+        ->whereNumber(['document', 'version'])
+        ->name('pdts.documents.versions.download');
+    // Each employee's own signature and signature PIN; the picture is shown only to its owner.
+    Route::get('/settings/signature', MySignature::class)->name('settings.signature');
+    Route::get('/settings/signature/image', function () {
+        // The signature in use, or (?pending=1) the one waiting for ICT; only ever the user's own.
+        $path = request()->boolean('pending') ? auth()->user()->pendingSignatureImage()?->storage_path : auth()->user()->signature_path;
+        abort_unless($path && Storage::disk('private')->exists($path), 404);
+
+        return response(Storage::disk('private')->get($path), 200, [
+            'Content-Type' => str_ends_with($path, '.png') ? 'image/png' : 'image/jpeg',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    })->name('settings.signature.image');
     Route::get('/admin/email-log', EmailLogIndex::class)->name('admin.email_log');
 
     Route::get('/configurations/roles/index', App\Livewire\Configurations\Roles\Index::class)

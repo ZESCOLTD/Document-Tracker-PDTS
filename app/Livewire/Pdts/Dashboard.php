@@ -8,6 +8,7 @@ use App\Models\DocumentMovement;
 use App\Models\PdtsDocument;
 use App\Models\PdtsDocumentAuditLog;
 use App\Models\User;
+use App\Services\Documents\DocumentAccess;
 use App\Services\Documents\WorkCounts;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -100,7 +101,9 @@ class Dashboard extends Component
             ->groupBy('status')
             ->pluck('total', 'status');
 
+        // Cancelled documents (issued in error) are left out of the dashboard figures.
         $byStatus = collect(DocumentStatus::cases())
+            ->reject(fn (DocumentStatus $status) => $status === DocumentStatus::Cancelled)
             ->map(fn (DocumentStatus $status) => [
                 'status' => $status,
                 'total' => (int) ($counts[$status->value] ?? 0),
@@ -179,12 +182,8 @@ class Dashboard extends Component
             return $query;
         }
 
-        return $query->where(fn (Builder $query) => $query
-            ->where('registered_by', $user->id)
-            ->orWhere('current_custodian_id', $user->id)
-            ->orWhereHas('movements', fn (Builder $movements) => $movements
-                ->where('sender_id', $user->id)
-                ->orWhere('recipient_id', $user->id)));
+        // The documents the user is involved in: the same rule as the list and the document page.
+        return app(DocumentAccess::class)->onlyInvolved($query, $user);
     }
 
     private function completions(callable $documents): Builder

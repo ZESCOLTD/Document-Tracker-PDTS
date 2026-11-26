@@ -205,6 +205,19 @@ describe('completion form', function () {
             ->call('complete')
             ->assertHasErrors(['completionAction', 'completionReason']);
     });
+
+    test('a one-letter remark is not enough to complete it', function () {
+        $this->custody->acknowledge($this->custody->forward($this->document, $this->sender, $this->recipient), $this->recipient);
+
+        Livewire::actingAs($this->recipient)->test(Custody::class)
+            ->call('openComplete', $this->document->id)
+            ->set('completionAction', 'reviewed')
+            ->set('completionReason', 'h')
+            ->call('complete')
+            ->assertHasErrors(['completionReason' => 'min']);
+
+        expect($this->document->fresh()->status)->not->toBe('completed');
+    });
 });
 
 describe('pages', function () {
@@ -319,6 +332,14 @@ describe('pending acknowledgements', function () {
         $this->movement = $this->custody->forward($this->document, $this->sender, $this->recipient, 'Urgent');
     });
 
+    test('the remarks column shows only when someone wrote a remark', function () {
+        Livewire::actingAs($this->recipient)->test(Pending::class)->assertSeeHtml('<th>Remarks</th>');
+
+        $this->movement->update(['remarks' => null]);
+        Livewire::actingAs($this->recipient)->test(Pending::class)
+            ->assertDontSeeHtml('<th>Remarks</th>')->assertSeeHtml('<th>From</th>')->assertDontSee('From / for');
+    });
+
     test('lists only documents waiting for the signed-in user', function () {
         Livewire::actingAs($this->recipient)->test(Pending::class)
             ->assertSee('PDTS-2026-0001')
@@ -426,7 +447,7 @@ describe('my custody', function () {
         $this->custody->cancel($this->custody->forward($cancelled, $this->sender, $this->recipient), $this->sender, 'Sent in error');
 
         Livewire::actingAs($this->sender)->test(Custody::class)
-            ->assertSee('Not yet forwarded.')
+            ->assertDontSee('Not yet forwarded.')
             ->assertSee('Rita Recipient declined it and returned it to you. Reason: Wrong department.')
             ->assertSee('The handover to Rita Recipient was cancelled. Reason: Sent in error.');
 

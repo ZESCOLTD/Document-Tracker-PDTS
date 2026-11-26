@@ -19,7 +19,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Events\Dispatcher as EventDispatcher;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\PaginationState;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Facade;
@@ -38,6 +40,9 @@ beforeEach(function () {
     Model::unsetConnectionResolver();
     $this->app = new Application(dirname(__DIR__, 2));
     $this->app->instance('config', new Repository);
+    // A request of its own, and pagination reading it, so the result does not depend on tests run before this one.
+    $this->app->instance('request', Request::create('http://localhost'));
+    PaginationState::resolveUsing($this->app);
     Facade::clearResolvedInstances();
     Facade::setFacadeApplication($this->app);
     $database = Mockery::mock(DatabaseManager::class);

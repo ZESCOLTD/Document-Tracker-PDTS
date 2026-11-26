@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -64,6 +65,8 @@ class User extends Authenticatable
         'remember_token',
         'two_factor_secret',
         'two_factor_recovery_codes',
+        'signature_pin',
+        'signature_path',
     ];
 
     /**
@@ -80,7 +83,62 @@ class User extends Authenticatable
         'notify_email' => 'boolean',
         'notify_in_app' => 'boolean',
         'notify_categories' => 'array',
+        'signature_updated_at' => 'datetime',
+        'signature_pin_updated_at' => 'datetime',
     ];
+
+    /**
+     * A signature verified by ICT and in use (not suspended), and a signing
+     * PIN or password: this person can sign electronically.
+     */
+    public function canSignElectronically(): bool
+    {
+        return $this->signature_path !== null
+            && $this->signature_pin !== null
+            && $this->currentSignatureImage()?->status === UserSignatureImage::ACTIVE;
+    }
+
+    /** The approved image in use (active or suspended), if any. */
+    public function currentSignatureImage(): ?UserSignatureImage
+    {
+        return $this->signature_path
+            ? $this->signatureImages()->where('storage_path', $this->signature_path)->latest('id')->first()
+            : null;
+    }
+
+    /** An upload waiting for ICT to verify it, if any. */
+    public function pendingSignatureImage(): ?UserSignatureImage
+    {
+        return $this->signatureImages()->where('status', UserSignatureImage::PENDING)->latest('id')->first();
+    }
+
+    /**
+     * Directors, Senior Managers and Managers (by grade), or anyone given the
+     * permission, may have a secretary or assistant prepare documents for them.
+     */
+    public function canHavePreparers(): bool
+    {
+        $grade = strtoupper(trim((string) $this->grade));
+
+        return ($grade !== '' && in_array($grade, (array) config('pdts.signatures.officer_grades', []), true))
+            || $this->can('documents.authorise_preparers');
+    }
+
+    /** "PIN" or "password": what this person signs with. */
+    public function signatureSecretName(): string
+    {
+        return $this->signature_secret_type === 'password' ? 'signature password' : 'signature PIN';
+    }
+
+    public function signatureImages(): HasMany
+    {
+        return $this->hasMany(UserSignatureImage::class);
+    }
+
+    public function signatureEvents(): HasMany
+    {
+        return $this->hasMany(UserSignatureEvent::class)->latest('occurred_at')->latest('id');
+    }
 
     /**
      * Should this user receive notifications for the given category over the given channel?

@@ -10,15 +10,16 @@
 
     <div class="card elevation-2 border-0">
         <div class="card-body p-0 table-responsive">
+            @php($showRemarks = $movements->contains(fn ($m) => filled($m->remarks)))
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
                         <th>Reference</th>
                         <th>Subject</th>
                         <th>Type</th>
-                        <th>From / for</th>
-                        <th>Date Sent</th>
-                        <th>Remarks</th>
+                        <th>From</th>
+                        <th>Sent</th>
+                        @if ($showRemarks)<th>Remarks</th>@endif
                         <th>Document</th>
                         <th class="text-right">Actions</th>
                     </tr>
@@ -27,9 +28,9 @@
                     @forelse ($movements as $movement)
                         <tr wire:key="pending-{{ $movement->id }}">
                             <td class="text-nowrap">{{ $movement->document->reference_number }}</td>
-                            <td>{{ $movement->document->title }}</td>
+                            <td style="min-width: 14rem;">{{ $movement->document->title }}</td>
                             <td>{{ $movement->document->documentType?->name ?? '—' }}</td>
-                            <td>
+                            <td style="min-width: 9rem;">
                                 {{ $movement->sender->name }}
                                 @if ($movement->messenger_id)
                                     <div class="small text-info">Messenger: {{ $movement->messenger?->name }}. Delivered {{ $movement->delivered_at?->format('d M Y H:i') }}</div>
@@ -38,8 +39,8 @@
                                     <div class="small text-info">For {{ $movement->recipient->name }}</div>
                                 @endif
                             </td>
-                            <td class="text-nowrap">{{ $movement->forwarded_at->format('d M Y H:i') }}</td>
-                            <td>{{ $movement->remarks ?? '—' }}</td>
+                            <td class="text-nowrap" title="{{ $movement->forwarded_at->format('d M Y H:i') }}">{{ $movement->forwarded_at->format($movement->forwarded_at->isCurrentYear() ? 'd M' : 'd M Y') }}<div class="small text-muted">{{ $movement->forwarded_at->format('H:i') }}</div></td>
+                            @if ($showRemarks)<td>{{ filled($movement->remarks) ? $movement->remarks : '—' }}</td>@endif
                             <td class="text-nowrap">
                                 @if ($movement->document->attachments_count > 0)
                                     <a href="{{ route('movements.scan', $movement->document) }}" target="_blank" rel="noopener">

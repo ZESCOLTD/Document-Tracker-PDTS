@@ -1,8 +1,8 @@
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap justify-content-between align-items-start mb-4">
         <div>
-            <h1 class="h3 mb-1">Acknowledgement Delegations</h1>
-            <p class="text-muted mb-0">Authorize an employee to acknowledge receipt on another employee’s behalf.</p>
+            <h1 class="h3 mb-1">Delegations</h1>
+            <p class="text-muted mb-0">Authorise an employee to receive documents for another employee, and/or to prepare documents for them to review and sign.</p>
         </div>
         <div class="btn-group" role="group" aria-label="Organizational management sections">
             <a href="{{ route('pdts.organization.directorates') }}" class="btn btn-outline-secondary">Directorates</a>
@@ -16,11 +16,11 @@
     @if (session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
 
     <section class="bg-white border rounded p-4 mb-4">
-        <h2 class="h5 mb-3">Grant acknowledgement delegation</h2>
+        <h2 class="h5 mb-3">Grant a delegation</h2>
         <form wire:submit.prevent="grant">
             <div class="form-row">
                 <div class="form-group col-md-4">
-                    <label for="delegation-principal">Intended recipient</label>
+                    <label for="delegation-principal">Officer</label>
                     <select id="delegation-principal" class="form-control" wire:model="principalUserId" required>
                         <option value="">Select employee</option>
                         @foreach($users as $user)
@@ -30,7 +30,7 @@
                     @error('principalUserId') <small class="text-danger">{{ $message }}</small> @enderror
                 </div>
                 <div class="form-group col-md-4">
-                    <label for="delegation-delegate">Authorized delegate</label>
+                    <label for="delegation-delegate">Authorised delegate</label>
                     <select id="delegation-delegate" class="form-control" wire:model="delegateUserId" required>
                         <option value="">Select delegate</option>
                         @foreach($users as $user)
@@ -48,6 +48,21 @@
                     <label for="delegation-expires">Expires at <span class="text-muted">(optional)</span></label>
                     <input id="delegation-expires" type="datetime-local" class="form-control" wire:model="expiresAt">
                     @error('expiresAt') <small class="text-danger">{{ $message }}</small> @enderror
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group col-12">
+                    <span class="d-block mb-1">Allows</span>
+                    <div class="custom-control custom-checkbox custom-control-inline">
+                        <input type="checkbox" class="custom-control-input" id="delegation-receive" wire:model="canReceive">
+                        <label class="custom-control-label" for="delegation-receive">Receive documents for the officer (acknowledge deliveries)</label>
+                    </div>
+                    <div class="custom-control custom-checkbox custom-control-inline">
+                        <input type="checkbox" class="custom-control-input" id="delegation-prepare" wire:model="canPrepare">
+                        <label class="custom-control-label" for="delegation-prepare">Prepare documents for the officer to review and sign</label>
+                    </div>
+                    @error('canReceive') <small class="d-block text-danger">{{ $message }}</small> @enderror
+                    @error('canPrepare') <small class="d-block text-danger">{{ $message }}</small> @enderror
                 </div>
             </div>
             <div class="form-row align-items-end">
@@ -77,7 +92,7 @@
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead>
-                    <tr><th>Recipient</th><th>Delegate</th><th>Valid period</th><th>Granted by</th><th>Reason</th><th>Status</th><th class="text-right">Actions</th></tr>
+                    <tr><th>Officer</th><th>Delegate</th><th>Allows</th><th>Valid period</th><th>Granted by</th><th>Reason</th><th>Status</th><th class="text-right">Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($delegations as $delegation)
@@ -85,6 +100,7 @@
                         <tr>
                             <td>{{ $delegation->principal->name }}</td>
                             <td>{{ $delegation->delegate->name }}</td>
+                            <td class="small">{{ collect([$delegation->can_receive ? 'Receive' : null, $delegation->can_prepare ? 'Prepare' : null])->filter()->implode(' + ') }}</td>
                             <td>{{ $delegation->starts_at->format('d M Y H:i') }}<span class="text-muted"> to </span>{{ $delegation->expires_at?->format('d M Y H:i') ?? 'No expiry' }}</td>
                             <td>{{ $delegation->granter->name }}</td>
                             <td>{{ $delegation->reason ?: '—' }}</td>
@@ -96,7 +112,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted py-4">No delegations found.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-4">No delegations found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

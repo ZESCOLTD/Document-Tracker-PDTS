@@ -206,4 +206,23 @@
 
         </div>
     </div>
+
+    {{-- ELECTRONIC SIGNATURE (the image itself is private to its owner) --}}
+    <div class="card shadow-sm border-0 mt-3" data-test="signature-admin">
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center" style="gap: .75rem;">
+            <div>
+                <div class="font-weight-bold"><i class="fas fa-signature mr-1 text-muted"></i>Electronic signature</div>
+                <div class="small text-muted">
+                    Signature picture: {{ $user->signature_path ? 'uploaded' : 'not uploaded' }} ·
+                    {{ $user->signature_pin ? ucfirst($user->signatureSecretName()).' set '.$user->signature_pin_updated_at?->format('j M Y') : 'No signature PIN or password' }}
+                </div>
+            </div>
+            @if ($user->signature_pin)
+                <button type="button" class="btn btn-outline-danger btn-sm" wire:click="resetSignatureSecret"
+                        wire:confirm="Reset {{ $user->name }}'s signature PIN/password? They will not be able to sign until they set a new one, and they will be told by email.">
+                    <i class="fas fa-key mr-1"></i>Reset signature PIN/password
+                </button>
+            @endif
+        </div>
+    </div>
 </div>

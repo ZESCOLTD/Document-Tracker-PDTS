@@ -49,8 +49,6 @@
                                         The handover to {{ $last->recipient?->name }} was cancelled. Reason: {{ $reason }}
                                     @elseif ($last?->status === \App\Enums\MovementStatus::Acknowledged)
                                         Received from {{ $last->sender?->name }} on {{ $last->acknowledged_at->format('d M Y') }} at {{ $last->acknowledged_at->format('H:i') }}.
-                                    @else
-                                        Not yet forwarded.
                                     @endif
                                 </div>
                                 @if ($document->pendingMovement?->messenger_id)
@@ -233,6 +231,9 @@
                         <label for="completion-reason">Completion details</label>
                         <textarea id="completion-reason" wire:model="completionReason" rows="3" maxlength="1000" class="form-control @error('completionReason') is-invalid @enderror"></textarea>
                         @error('completionReason') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        <label for="completion-file-reference" class="mt-3">File number or location <span class="text-muted">(optional)</span></label>
+                        <input id="completion-file-reference" type="text" wire:model="completionFileReference" maxlength="150" class="form-control @error('completionFileReference') is-invalid @enderror" placeholder="e.g. ICT/ADM/12, Registry shelf B">
+                        <small class="form-text text-muted">Shown in the Archive, so the paper can be found later.</small>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" wire:click="closeComplete">Cancel</button>

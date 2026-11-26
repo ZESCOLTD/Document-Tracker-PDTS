@@ -6,6 +6,7 @@ use App\Models\PdtsDepartment;
 use App\Models\PdtsDirectorate;
 use App\Models\PdtsDocumentType;
 use App\Models\PdtsOffice;
+use App\Services\Ai\AiTimeLimit;
 use App\Services\Ai\DocumentMetadataExtractor;
 use App\Services\Ai\DocumentOcrClient;
 use App\Services\Pdts\RegisterPdtsDocument;
@@ -98,7 +99,7 @@ class Registration extends Component
         if ($this->ocrError !== null) {
             return;
         }
-        set_time_limit(max(30, (int) config('services.azure_openai.timeout', 90) + 15));
+        AiTimeLimit::allow(max(30, (int) config('services.azure_openai.timeout', 90) + 15));
         try {
             $metadata = $extractor->extract($this->ocrText, $this->documentTypeOptions());
             foreach (['title', 'subject', 'description', 'document_reference', 'document_date', 'document_type_id'] as $field) {
@@ -125,7 +126,7 @@ class Registration extends Component
 
         $this->reset(['ocrText', 'ocrPageCount', 'ocrError']);
         $this->validateOnly('attachment');
-        set_time_limit(max(30, (int) config('services.pdts_ai.timeout', 180) + 15));
+        AiTimeLimit::allow(max(30, (int) config('services.pdts_ai.timeout', 180) + 15));
 
         try {
             $result = $ocr->extract($this->attachment);
@@ -136,7 +137,7 @@ class Registration extends Component
         }
     }
 
-    public function mount(RegistrationApplicant $applicants): void
+    public function mount(): void
     {
         // Start from the registrar's own office, when they have an active one.
         $user = Auth::user();
@@ -149,7 +150,7 @@ class Registration extends Component
             ->first(fn (?PdtsOffice $office) => $office?->isUsable());
 
         $directorates = $office ? collect() : PdtsDirectorate::query()->where('is_active', true)->with('departments')->get();
-        $details = $applicants->resolve($user, $office, $directorates);
+        $details = app(RegistrationApplicant::class)->resolve($user, $office, $directorates);
         $this->applicantDetails = $details['applicant'];
         $this->applicantUnitSource = $details['unit_source'];
         $this->directorate_id = $details['directorate_id'];

@@ -14,9 +14,10 @@
         'locked' => $locked,
         'qrTyped' => $qrTyped,
         'workerSrc' => asset('vendor/pdfjs/pdf.worker.min.js'),
+        'marks' => $marks ?? [],
     ];
 @endphp
-<div class="container-fluid py-4">
+<div class="container-fluid pt-2 pb-3">
     @assets
         <script src="{{ asset('vendor/jszip/jszip.min.js') }}"></script>
         <script src="{{ asset('vendor/docx-preview/docx-preview.min.js') }}"></script>
@@ -34,9 +35,92 @@
                 loading: true,
                 failed: '',
                 pageEls: [],
+                // How the template is shown: the whole page in view, or as wide as the preview (bigger; scrolls down).
+                fitMode: (() => { try { return localStorage.getItem('pdts.qr.view') || 'width'; } catch (e) { return 'width'; } })(),
+                // Zoom on top of the fit, from the - and + buttons (1 = as fitted).
+                extraZoom: 1,
+                shownZoom: 1,
                 pdfPageCount: config.pages.length,
+                // Lines marked by hand: { line, text, kind: field|writing|signature, label }
+                marks: (config.marks || []).map((m) => ({ ...m })),
+                marking: false,
+                picked: null, // { line, text } chosen in the preview, waiting for a kind and name
+                pickKind: 'field',
+                pickLabel: '',
+
+                lines() {
+                    return [...this.$refs.pages.querySelectorAll('section.docx > article p')];
+                },
+
+                startMarking() {
+                    this.marking = ! this.marking;
+                    this.picked = null;
+                    this.$refs.pages.classList.toggle('is-marking', this.marking);
+                },
+
+                pickLine(event) {
+                    if (! this.marking) return;
+                    const p = event.target.closest('section.docx > article p');
+                    if (! p) return;
+                    event.preventDefault();
+                    const line = this.lines().indexOf(p);
+                    this.picked = { line, text: p.textContent.trim().slice(0, 300) };
+                    const existing = this.marks.find((m) => m.line === line);
+                    this.pickKind = existing ? existing.kind : (p.textContent.trim() === '' ? 'writing' : 'field');
+                    this.pickLabel = existing ? existing.label : '';
+                },
+
+                addMark() {
+                    if (! this.picked) return;
+                    if (this.pickKind !== 'signature' && this.pickLabel.trim() === '') return;
+                    if (this.pickKind === 'signature') {
+                        this.marks = this.marks.filter((m) => m.kind !== 'signature');
+                    }
+                    this.marks = this.marks.filter((m) => m.line !== this.picked.line);
+                    this.marks.push({ line: this.picked.line, text: this.picked.text, kind: this.pickKind, label: this.pickKind === 'signature' ? '' : this.pickLabel.trim() });
+                    this.marks.sort((a, b) => a.line - b.line);
+                    this.picked = null;
+                    this.showMarks();
+                },
+
+                removeMark(line) {
+                    this.marks = this.marks.filter((m) => m.line !== line);
+                    this.showMarks();
+                },
+
+                showMarks() {
+                    if (this.kind !== 'docx') return;
+                    const lines = this.lines();
+                    lines.forEach((p) => { p.classList.remove('qr-marked'); delete p.dataset.mark; });
+                    this.marks.forEach((m) => {
+                        const p = lines[m.line];
+                        if (! p) return;
+                        p.classList.add('qr-marked');
+                        p.dataset.mark = m.kind === 'signature' ? 'Signature spot' : (m.kind === 'writing' ? 'Writing space: ' : 'Field: ') + (m.label || '');
+                    });
+                },
+
+                markKindLabel(kind) {
+                    return { field: 'Field', writing: 'Writing space', signature: 'Signature spot' }[kind] || kind;
+                },
+
+                // The preview and the side panel fill the screen below the page heading, so Save is always in view.
+                fitHeight() {
+                    const top = this.$root.getBoundingClientRect().top + window.scrollY;
+                    const page = document.documentElement;
+                    let height = Math.max(420, window.innerHeight - top - 16);
+                    this.$root.style.setProperty('--qr-h', height + 'px');
+                    // Whatever still makes the window scroll (the page's own padding, a footer) comes off too.
+                    const extra = page.scrollHeight - window.innerHeight;
+                    if (extra > 0) {
+                        height = Math.max(420, height - extra);
+                        this.$root.style.setProperty('--qr-h', height + 'px');
+                    }
+                },
 
                 async init() {
+                    this.fitHeight();
+                    window.addEventListener('resize', () => this.fitHeight());
                     try {
                         if (this.kind === 'pdf') {
                             await this.renderPdf();
@@ -48,7 +132,10 @@
                         this.failed = 'The preview could not be shown in this browser. You can still set the position with the numbers on the right and download a sample to check it.';
                     }
                     this.loading = false;
-                    this.$nextTick(() => this.drawPins());
+                    this.fit();
+                    window.addEventListener('resize', () => this.fit());
+                    this.$nextTick(() => { this.drawPins(); this.showMarks(); });
+                    this.$refs.pages.addEventListener('click', (event) => this.pickLine(event));
                     // A new page choice redraws the pins; moving or resizing only
                     // repositions them, so a pin being dragged is never replaced.
                     this.$watch('placement.page', () => this.drawPins());
@@ -56,9 +143,29 @@
                     window.addEventListener('resize', () => this.drawPins());
                 },
 
+                // A tab typed as a character inside the text (as in ZESCO's memo,
+                // "TO: …<tab>FROM: …") is drawn by the previewer as a space, so FROM
+                // would sit right after TO. Word prints it at the tab stop: make it a
+                // real tab in this preview copy (the file itself is not changed).
+                async withRealTabs(buffer) {
+                    try {
+                        const zip = await window.JSZip.loadAsync(buffer);
+                        let changed = false;
+                        for (const name of Object.keys(zip.files).filter((n) => /^word\/(document|header\d*|footer\d*)\.xml$/.test(n))) {
+                            const xml = await zip.file(name).async('string');
+                            const fixed = xml.replace(/<w:t(\s[^>]*)?>([^<]*(?:\t|&#9;|&#x9;)[^<]*)<\/w:t>/g, (all, attrs, text) =>
+                                text.split(/\t|&#9;|&#x9;/).map((part) => '<w:t xml:space="preserve">' + part + '</w:t>').join('<w:tab/>'));
+                            if (fixed !== xml) { zip.file(name, fixed); changed = true; }
+                        }
+                        return changed ? await zip.generateAsync({ type: 'arraybuffer' }) : buffer;
+                    } catch (e) {
+                        return buffer;
+                    }
+                },
+
                 async renderDocx() {
                     const response = await fetch(config.url, { credentials: 'same-origin' });
-                    const buffer = await response.arrayBuffer();
+                    const buffer = await this.withRealTabs(await response.arrayBuffer());
                     const host = this.$refs.pages;
                     await window.docx.renderAsync(buffer, host, null, {
                         className: 'docx', inWrapper: true, breakPages: true, ignoreLastRenderedPageBreak: false,
@@ -72,18 +179,36 @@
                         if (!el.style.width) el.style.width = (page.width * 96 / 25.4) + 'px';
                         if (!el.style.minHeight) el.style.minHeight = (page.height * 96 / 25.4) + 'px';
                     });
-                    this.fitDocx();
-                    window.addEventListener('resize', () => this.fitDocx());
                 },
 
-                fitDocx() {
-                    const wrapper = this.$refs.pages.querySelector('.docx-wrapper');
+                /*
+                 * Scales the template in the preview: "page" shows the whole first page,
+                 * "width" makes it as wide as the preview. Pins follow, as they sit on the pages.
+                 */
+                fit() {
                     const first = this.pageEls[0];
-                    if (!wrapper || !first) return;
-                    wrapper.style.zoom = 1;
-                    const available = this.$refs.pages.clientWidth - 24;
-                    const zoom = Math.min(1, available / (first.offsetWidth + 40));
-                    wrapper.style.zoom = zoom;
+                    const target = this.kind === 'pdf' ? this.$refs.pages : this.$refs.pages.querySelector('.docx-wrapper');
+                    if (!first || !target) return;
+                    target.style.zoom = 1;
+                    const box = this.$refs.previewBox;
+                    const byWidth = (box.clientWidth - 24) / first.offsetWidth;
+                    const byHeight = (box.clientHeight - 24) / (first.offsetHeight + (this.kind === 'pdf' ? 20 : 4));
+                    const zoom = Math.min(2.5, (this.fitMode === 'width' ? byWidth : Math.min(byWidth, byHeight)) * this.extraZoom);
+                    target.style.zoom = zoom;
+                    this.shownZoom = zoom;
+                },
+
+                zoomStep(step) {
+                    this.extraZoom = Math.max(0.5, Math.min(2.5, Math.round((this.extraZoom + step) * 10) / 10));
+                    this.fit();
+                },
+
+                setFit(mode) {
+                    this.fitMode = mode;
+                    try { localStorage.setItem('pdts.qr.view', mode); } catch (e) {}
+                    this.extraZoom = 1;
+                    this.fit();
+                    this.$refs.previewBox.scrollTop = 0;
                 },
 
                 async renderPdf() {
@@ -154,6 +279,8 @@
                     pin.style.top = (this.placement.y * p) + 'px';
                     pin.style.width = (this.placement.size * p) + 'px';
                     pin.style.height = (this.placement.size * p) + 'px';
+                    // Near the top of the page the "Drag me" label would be cut off above it: show it below instead.
+                    pin.classList.toggle('hint-below', this.placement.y * p < 48);
                 },
 
                 makePin(index, ghost) {
@@ -213,7 +340,13 @@
     @endassets
 
     <style>
-        .qr-setup-preview { background: #e9eef0; border-radius: .75rem; min-height: 60vh; max-height: calc(100vh - 11rem); overflow: auto; padding: 1rem; position: relative; }
+        .qr-setup-preview { background: #e9eef0; border-radius: .75rem; height: calc(var(--qr-h, calc(100vh - 8rem)) - 2.25rem); min-height: 340px; overflow: auto; padding: .5rem; position: relative; }
+        .qr-fit { display: flex; justify-content: flex-end; gap: .5rem; height: 2.25rem; align-items: center; }
+        .qr-fit > div { display: inline-flex; background: #fff; border: 1px solid #dfe6e6; border-radius: .5rem; overflow: hidden; box-shadow: 0 1px 4px rgba(0, 0, 0, .08); }
+        .qr-fit button { border: 0; background: #fff; font-size: .75rem; padding: .25rem .6rem; color: #3d4b4b; }
+        .qr-fit button + button { border-left: 1px solid #dfe6e6; }
+        .qr-fit button.is-on { background: {{ $teal }}; color: #fff; }
+        .qr-fit-pct { font-size: .72rem; color: #3d4b4b; min-width: 2.75rem; text-align: center; align-self: center; border-left: 1px solid #dfe6e6; border-right: 1px solid #dfe6e6; padding: .25rem .25rem; }
         .qr-setup-preview .docx-wrapper { background: transparent !important; padding: 0 !important; }
         .qr-setup-preview section.docx { position: relative; box-shadow: 0 2px 10px rgba(0, 0, 0, .15) !important; margin: 0 auto 1rem !important; }
         .qr-pdf-page { position: relative; margin: 0 auto 1rem; background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, .15); }
@@ -227,43 +360,60 @@
         .qr-pin .qr-pin-ref { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: max-content; white-space: nowrap !important; overflow-wrap: normal !important; word-break: keep-all; font: 600 7px/1.4 Arial, sans-serif; color: #111; background: rgba(255, 255, 255, .85); padding: 0 2px; }
         .qr-pin-hint { position: absolute; bottom: 100%; left: 50%; transform: translate(-50%, -6px); white-space: nowrap; font-size: .6875rem; font-weight: 600; color: #fff; background: {{ $teal }}; border-radius: 999px; padding: .1rem .5rem; pointer-events: none; }
         .qr-pin.is-locked .qr-pin-hint { display: none; }
+        .qr-setup-preview .qr-pin .qr-pin-hint { white-space: nowrap !important; word-break: keep-all; line-height: 1.4; }
+        .qr-pin.hint-below .qr-pin-hint { bottom: auto; top: 100%; transform: translate(-50%, 16px); }
         .qr-pin.is-view { cursor: default; outline: none; box-shadow: none; }
         .qr-pin.is-view.is-ghost { opacity: 1; }
         .qr-facts dt { font-size: .75rem; font-weight: 600; color: #6c7a7a; margin-bottom: .1rem; }
         .qr-facts dd { margin-bottom: .75rem; }
-        .qr-side { position: sticky; top: 1rem; }
+        /* As tall as the preview, scrolling on its own; it ends above the support chat button (fixed at the bottom right). */
+        .qr-side { position: sticky; top: 1rem; max-height: calc(var(--qr-h, calc(100vh - 8rem)) - 4rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 2px; }
+        .qr-side .card-body { padding: .875rem 1rem; }
+        .qr-side .card { margin-bottom: .625rem !important; }
+        @media (max-width: 991.98px) { .qr-side { position: static; max-height: none; overflow: visible; } .qr-setup-preview { height: 70vh; } }
         .qr-side .card { border-radius: .75rem; }
-        .qr-step { font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6c7a7a; margin-bottom: .5rem; }
+        .qr-step { font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6c7a7a; margin-bottom: .375rem; }
         .qr-seg { display: flex; flex-wrap: wrap; gap: .375rem; }
-        .qr-seg label { flex: 1 1 auto; margin: 0; border: 1.5px solid #dfe6e6; border-radius: .5rem; padding: .375rem .625rem; font-size: .8125rem; font-weight: 600; text-align: center; cursor: pointer; }
+        .qr-seg label { flex: 1 1 auto; margin: 0; border: 1.5px solid #dfe6e6; border-radius: .5rem; padding: .25rem .5rem; font-size: .78rem; font-weight: 600; text-align: center; cursor: pointer; }
         .qr-seg label.is-on { border-color: {{ $teal }}; background: #eef5f5; color: {{ $teal }}; }
         .qr-seg input { position: absolute; opacity: 0; pointer-events: none; }
-        .qr-presets { display: grid; grid-template-columns: 1fr 1fr; gap: .375rem; }
+        .qr-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: .375rem; }
         .qr-presets button { font-size: .8125rem; }
         .qr-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .55rem; border-radius: 999px; background: #f1f8f5; border: 1px solid #cfe4d9; font-size: .75rem; font-weight: 600; color: #1d5c3f; margin: 0 .25rem .25rem 0; }
         .qr-range { width: 100%; accent-color: {{ $teal }}; }
+        .qr-setup-preview .is-marking section.docx > article p { cursor: pointer; }
+        .qr-setup-preview .is-marking section.docx > article p:hover { background: rgba(7, 91, 53, .08); outline: 1px dashed #075B35; }
+        .qr-setup-preview p.qr-marked { background: rgba(232, 137, 12, .12); outline: 2px solid #e8890c; position: relative; }
+        .qr-setup-preview p.qr-marked::after { content: attr(data-mark); position: absolute; right: 0; top: -1.3em; font: 600 10px/1.4 Arial, sans-serif; color: #fff; background: #e8890c; padding: 0 6px; border-radius: 3px; white-space: nowrap; }
+        .qr-mark-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .8125rem; padding: .25rem 0; border-bottom: 1px solid #eef0f3; }
     </style>
 
-    <div class="d-flex flex-wrap justify-content-between align-items-start mb-3" style="gap: .5rem;">
-        <div>
-            <a href="{{ route('pdts.organization.document-templates') }}" class="small text-muted"><i class="fas fa-arrow-left mr-1"></i>Document Templates</a>
-            <h1 class="h3 mb-1 mt-1">{{ $viewOnly ? $template->name : 'Place the QR code' }}</h1>
-            <p class="text-muted mb-0">
-                <i class="fas {{ $template->isPdf() ? 'fa-file-pdf text-danger' : 'fa-file-word text-primary' }} mr-1"></i>@unless ($viewOnly){{ $template->name }}<span class="mx-1">·</span>@endunless{{ $template->original_filename }}
-                @if ($template->description)<span class="mx-1">·</span>{{ $template->description }}@endif
-            </p>
+    {{-- The heading and the buttons on one row, so the preview and the settings get the rest of the window. --}}
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 qr-head" style="gap: .5rem;">
+        <div class="d-flex align-items-center" style="gap: .75rem; min-width: 0;">
+            <a href="{{ route('pdts.organization.document-templates') }}" class="text-muted" title="Back to Document Templates" aria-label="Back to Document Templates"><i class="fas fa-arrow-left"></i></a>
+            <div style="min-width: 0;">
+                <h1 class="h5 mb-0">{{ $viewOnly ? $template->name : 'Place the QR code' }}</h1>
+                <div class="small text-muted text-truncate" title="{{ $template->description }}">
+                    <i class="fas {{ $template->isPdf() ? 'fa-file-pdf text-danger' : 'fa-file-word text-primary' }} mr-1"></i>@unless ($viewOnly){{ $template->name }}<span class="mx-1">·</span>@endunless{{ $template->original_filename }}
+                </div>
+            </div>
         </div>
-        @if ($viewOnly && ! $problem)
+        @unless ($viewOnly || $problem)
+            {{-- The editor below holds the placement and the marks; these buttons ask it to act. --}}
             <div class="d-flex flex-wrap" style="gap: .5rem;">
-                <button type="button" class="btn btn-outline-secondary" wire:click="downloadSavedSample" wire:loading.attr="disabled" wire:target="downloadSavedSample" @disabled(! $showPin)>
-                    <span wire:loading.remove wire:target="downloadSavedSample"><i class="fas fa-download mr-1"></i>Download sample</span>
-                    <span wire:loading wire:target="downloadSavedSample"><i class="fas fa-circle-notch fa-spin mr-1"></i>Preparing…</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary bg-white" x-data x-on:click="$dispatch('qr-sample')" wire:loading.attr="disabled" wire:target="downloadSample" data-test="qr-sample">
+                    <span wire:loading.remove wire:target="downloadSample"><i class="fas fa-eye mr-1"></i>Download a sample to check</span>
+                    <span wire:loading wire:target="downloadSample"><i class="fas fa-circle-notch fa-spin mr-1"></i>Preparing sample…</span>
                 </button>
-                @unless ($template->documents_count)
-                    <a href="{{ route('pdts.organization.document-templates.qr', $template) }}" class="btn btn-primary"><i class="fas fa-qrcode mr-1"></i>{{ $template->isConfigured() ? 'Move QR code' : 'Place QR code' }}</a>
+                @unless ($locked)
+                    <button type="button" class="btn btn-sm btn-primary" x-data x-on:click="$dispatch('qr-save')" wire:loading.attr="disabled" wire:target="save" data-test="qr-save">
+                        <span wire:loading.remove wire:target="save"><i class="fas fa-check mr-1"></i>Save template</span>
+                        <span wire:loading wire:target="save"><i class="fas fa-circle-notch fa-spin mr-1"></i>Saving…</span>
+                    </button>
                 @endunless
             </div>
-        @endif
+        @endunless
     </div>
 
     @if (session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
@@ -274,23 +424,30 @@
             <a href="{{ route('pdts.organization.document-templates') }}" class="alert-link ml-1">Back to templates</a>
         </div>
     @else
-        <div class="row" x-data="pdtsQrEditor(@js($config + ['sampleQr' => $sampleQr]))">
-            <div class="col-lg-8 mb-3">
-                <div class="qr-setup-preview" x-ref="previewBox">
+        <div class="row" x-data="pdtsQrEditor(@js($config + ['sampleQr' => $sampleQr]))"
+            x-on:qr-save.window="$wire.save(placement, marks)" x-on:qr-sample.window="$wire.downloadSample(placement, marks)">
+            <div class="col-lg-8 col-xl-9 mb-3">
+                {{-- The view controls in a bar of their own above the preview, always in view. --}}
+                <div class="qr-fit" data-test="qr-fit">
+                    <div role="group" aria-label="How big the template is shown">
+                        <button type="button" :class="{ 'is-on': fitMode === 'page' }" x-on:click="setFit('page')" title="The whole page in view"><i class="fas fa-compress mr-1"></i>Whole page</button>
+                        <button type="button" :class="{ 'is-on': fitMode === 'width' }" x-on:click="setFit('width')" title="As wide as the preview: bigger, scroll down for the rest"><i class="fas fa-arrows-alt-h mr-1"></i>Page width</button>
+                    </div>
+                    <div role="group" aria-label="Zoom">
+                        <button type="button" x-on:click="zoomStep(-0.1)" title="Zoom out (or Ctrl + mouse wheel)" aria-label="Zoom out"><i class="fas fa-search-minus"></i></button>
+                        <span class="qr-fit-pct" x-text="Math.round(shownZoom * 100) + '%'">100%</span>
+                        <button type="button" x-on:click="zoomStep(0.1)" title="Zoom in (or Ctrl + mouse wheel)" aria-label="Zoom in"><i class="fas fa-search-plus"></i></button>
+                    </div>
+                </div>
+                {{-- Ctrl + mouse wheel zooms the template, as in Word (instead of the whole browser page). --}}
+                <div class="qr-setup-preview" x-ref="previewBox" x-on:wheel="if ($event.ctrlKey) { $event.preventDefault(); zoomStep($event.deltaY < 0 ? 0.1 : -0.1); }">
                     <div x-show="loading" class="text-center text-muted py-5"><i class="fas fa-circle-notch fa-spin fa-2x mb-2 d-block"></i>Opening the template…</div>
                     <div x-show="failed" x-cloak class="alert alert-warning m-3" x-text="failed"></div>
                     <div x-ref="pages" wire:ignore></div>
                 </div>
-                <div class="small text-muted mt-2"><i class="fas fa-info-circle mr-1"></i>
-                    @if ($viewOnly)
-                        The template as uploaded, with a sample QR code and reference where each document's own will print.
-                    @else
-                        This is the template exactly as uploaded. Drag the QR code to an empty spot so it does not cover text, logos or signatures.
-                    @endif
-                </div>
             </div>
 
-            <div class="col-lg-4">
+            <div class="col-lg-4 col-xl-3">
                 @if ($viewOnly)
                     <div class="qr-side">
                         <div class="card shadow-sm border-0">
@@ -307,27 +464,24 @@
                                         @endif
                                     </dd>
                                     <dt>Document type</dt>
-                                    <dd>{{ $template->documentType?->name ?? 'Any (the author chooses)' }}</dd>
-                                    <dt>QR code</dt>
-                                    <dd><i class="fas fa-qrcode text-muted mr-1"></i>{{ $template->qrLabel() }}</dd>
-                                    <dt>Form asks for</dt>
-                                    <dd>
-                                        <span class="qr-chip"><i class="fas fa-check"></i>Subject</span>
-                                        @foreach ($formFields as $label)
-                                            @continue($label === 'Subject')
-                                            <span class="qr-chip"><i class="fas fa-check"></i>{{ $label }}</span>
-                                        @endforeach
-                                        @if ($template->isPdf())
-                                            <div class="small text-muted mt-1">Details are written on the paper by hand.</div>
-                                        @endif
-                                    </dd>
+                                    <dd>{{ $template->documentType?->name ?? 'Any' }}</dd>
+                                    <dt>Signed</dt>
+                                    <dd>{{ $template->supportsElectronicSignature() ? 'In PDTS or on paper' : ($template->isUnsigned() ? 'Not signed' : 'On paper') }}</dd>
                                     <dt>Documents made from it</dt>
-                                    <dd>{{ $template->documents_count }}@if ($template->documents_count) <span class="small text-muted">(QR code position is fixed)</span>@endif</dd>
-                                    <dt>Uploaded</dt>
+                                    <dd>{{ $template->documents_count }}@if ($template->documents_count)<span class="small text-muted ml-1" title="The QR code stays where it printed on them. A new version can move it." data-test="qr-fixed"><i class="fas fa-lock mx-1"></i>QR code fixed</span>@endif</dd>
+                                    <dt>{{ $template->isBuilt() ? 'Built' : 'Uploaded' }}</dt>
                                     <dd class="mb-0">{{ $template->uploader?->name ?? 'Unknown' }}, {{ $template->created_at?->format('j M Y') }}</dd>
                                 </dl>
                             </div>
                         </div>
+                        @if ($found)
+                            <div class="card shadow-sm border-0 mt-3" data-test="qr-found">
+                                <div class="card-body">
+                                    <div class="qr-step">What PDTS found</div>
+                                    @include('livewire.pdts.organization.partials.template-found', ['check' => $found, 'template' => $template, 'stacked' => true, 'tracking' => false])
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 @else
                 <div class="qr-side">
@@ -340,7 +494,7 @@
                     <div class="card shadow-sm border-0 mb-3">
                         <div class="card-body">
 
-                                <div class="qr-step">1 · Page</div>
+                                <div class="qr-step" @unless ($template->isPdf()) title="Word documents grow as they are typed, so the QR code goes on every page or on the first page." @endunless>1 · Page</div>
                                 <div class="qr-seg mb-2" role="radiogroup" aria-label="Page">
                                     <label :class="{ 'is-on': placement.page === 'all' }"><input type="radio" value="all" x-model="placement.page" :disabled="locked">Every page</label>
                                     <label :class="{ 'is-on': placement.page === 'first' }"><input type="radio" value="first" x-model="placement.page" :disabled="locked">First page only</label>
@@ -355,18 +509,17 @@
                                             <template x-for="n in pdfPageCount" :key="n"><option :value="String(n)" x-text="'Page ' + n"></option></template>
                                         </select>
                                     </div>
-                                @else
-                                    <div class="small text-muted mb-3">Word documents grow as they are typed, so the QR code goes on every page or on the first page.</div>
                                 @endif
 
-                                <div class="qr-step">2 · Position <span class="text-lowercase font-weight-normal">(or drag it on the preview)</span></div>
+                                <div class="qr-step" title="Drag the QR code to an empty spot on the preview so it does not cover text, logos or signatures, or pick a corner.">2 · Position <span class="text-lowercase font-weight-normal">(or drag it on the preview)</span></div>
+                                {{-- The four corners on one row; the name shows on hover. --}}
                                 <div class="qr-presets mb-2">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" x-on:click="preset('top-left')" :disabled="locked"><i class="fas fa-arrow-up mr-1" style="transform: rotate(-45deg);"></i>Top left</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" x-on:click="preset('top-right')" :disabled="locked"><i class="fas fa-arrow-up mr-1" style="transform: rotate(45deg);"></i>Top right</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" x-on:click="preset('bottom-left')" :disabled="locked"><i class="fas fa-arrow-down mr-1" style="transform: rotate(45deg);"></i>Bottom left</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" x-on:click="preset('bottom-right')" :disabled="locked"><i class="fas fa-arrow-down mr-1" style="transform: rotate(-45deg);"></i>Bottom right</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" x-on:click="preset('top-left')" :disabled="locked" title="Top left" aria-label="Top left"><i class="fas fa-arrow-up" style="transform: rotate(-45deg);"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" x-on:click="preset('top-right')" :disabled="locked" title="Top right" aria-label="Top right"><i class="fas fa-arrow-up" style="transform: rotate(45deg);"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" x-on:click="preset('bottom-left')" :disabled="locked" title="Bottom left" aria-label="Bottom left"><i class="fas fa-arrow-down" style="transform: rotate(45deg);"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" x-on:click="preset('bottom-right')" :disabled="locked" title="Bottom right" aria-label="Bottom right"><i class="fas fa-arrow-down" style="transform: rotate(-45deg);"></i></button>
                                 </div>
-                                <div class="form-row mb-3">
+                                <div class="form-row mb-2">
                                     <div class="col">
                                         <label class="small text-muted mb-0" for="qr-x">From left (mm)</label>
                                         <input id="qr-x" type="number" step="0.5" min="0" class="form-control form-control-sm" x-model.number="placement.x" x-on:change="clamp()" :disabled="locked">
@@ -387,35 +540,59 @@
                         </div>
                     </div>
 
-                    @if (! $template->isPdf())
-                        <div class="card shadow-sm border-0 mb-3">
+                    @if ($found)
+                        <div class="card shadow-sm border-0 mb-3" data-test="qr-found">
                             <div class="card-body">
-                                <div class="qr-step">PDTS will fill in</div>
-                                @forelse ($fields as $field)
-                                    <span class="qr-chip"><i class="fas fa-check"></i>{{ ['to' => 'To', 'from' => 'From', 'cc' => 'CC', 'office_reference' => 'Ref', 'date' => 'Date', 'subject' => 'Subject'][$field] ?? $field }}</span>
-                                @empty
-                                    <div class="small text-muted">No TO, FROM, CC, REF, DATE or SUBJECT lines with space to fill were found. The QR code is still added.</div>
-                                @endforelse
+                                <div class="qr-step">What PDTS found</div>
+                                @include('livewire.pdts.organization.partials.template-found', ['check' => $found, 'template' => $template, 'stacked' => true, 'tracking' => false])
+                                @unless ($locked)<div class="small text-muted mt-2">Something missing? Mark it below.</div>@endunless
                             </div>
                         </div>
-                    @else
+                    @endif
+
+                    @if (! $template->isPdf() && ! $locked)
+                        <div class="card shadow-sm border-0 mb-3" data-test="mark-lines">
+                            <div class="card-body">
+                                <div class="qr-step">Fix what PDTS missed</div>
+                                <div class="small text-muted mb-2">A line that should be filled in, written in or signed but was not found? Mark it on the preview.</div>
+                                <button type="button" class="btn btn-sm mb-2" :class="marking ? 'btn-warning' : 'btn-outline-secondary'" x-on:click="startMarking()">
+                                    <i class="fas fa-highlighter mr-1"></i><span x-text="marking ? 'Done marking' : 'Mark a line'"></span>
+                                </button>
+                                <div x-show="marking && ! picked" x-cloak class="small text-muted mb-2">Click a line in the template.</div>
+
+                                <template x-if="picked">
+                                    <div class="border rounded p-2 mb-2" style="background: #fffaf1;">
+                                        <div class="small text-muted mb-1">Line <span x-text="picked.line + 1"></span>: <em x-text="picked.text || '(empty line)'"></em></div>
+                                        <div class="qr-seg mb-2">
+                                            <label :class="{ 'is-on': pickKind === 'field' }"><input type="radio" value="field" x-model="pickKind">A field</label>
+                                            <label :class="{ 'is-on': pickKind === 'writing' }"><input type="radio" value="writing" x-model="pickKind">Writing space</label>
+                                            <label :class="{ 'is-on': pickKind === 'signature' }"><input type="radio" value="signature" x-model="pickKind">Signature</label>
+                                        </div>
+                                        <input type="text" class="form-control form-control-sm mb-2" maxlength="80" x-show="pickKind !== 'signature'" x-model="pickLabel" placeholder="Name on the form, e.g. Background">
+                                        <div class="small text-muted mb-2" x-show="pickKind === 'field'">The value is written at the end of this line (or replaces a [hint] on it).</div>
+                                        <div class="small text-muted mb-2" x-show="pickKind === 'writing'">Paragraphs are written here (or on a new line under this heading).</div>
+                                        <div class="small text-muted mb-2" x-show="pickKind === 'signature'">The signatory's signature goes here, instead of where PDTS put it.</div>
+                                        <button type="button" class="btn btn-sm btn-primary" x-on:click="addMark()" :disabled="pickKind !== 'signature' && pickLabel.trim() === ''">Add</button>
+                                        <button type="button" class="btn btn-sm btn-link" x-on:click="picked = null">Cancel</button>
+                                    </div>
+                                </template>
+
+                                <template x-for="mark in marks" :key="mark.line">
+                                    <div class="qr-mark-row">
+                                        <span><strong x-text="markKindLabel(mark.kind)"></strong><span x-show="mark.label" x-text="': ' + mark.label"></span> <span class="text-muted">· line <span x-text="mark.line + 1"></span></span></span>
+                                        <button type="button" class="btn btn-sm btn-link text-danger p-0" x-on:click="removeMark(mark.line)">Remove</button>
+                                    </div>
+                                </template>
+                                <div class="small text-muted mt-1" x-show="marks.length">Marks are applied when you save.</div>
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($template->isPdf())
                         <div class="small text-muted mb-3"><i class="fas fa-info-circle mr-1"></i>PDF templates are printed as they are, with each document's QR code added. Details are written on the paper by hand.</div>
                     @endif
 
                     @error('placement') <div class="alert alert-danger small">{{ $message }}</div> @enderror
-
-                    <div class="d-flex flex-column" style="gap: .5rem;">
-                        <button type="button" class="btn btn-outline-secondary" x-on:click="$wire.downloadSample(placement)" wire:loading.attr="disabled" wire:target="downloadSample">
-                            <span wire:loading.remove wire:target="downloadSample"><i class="fas fa-eye mr-1"></i>Download a sample to check</span>
-                            <span wire:loading wire:target="downloadSample"><i class="fas fa-circle-notch fa-spin mr-1"></i>Preparing sample…</span>
-                        </button>
-                        @unless ($locked)
-                            <button type="button" class="btn btn-primary btn-lg" x-on:click="$wire.save(placement)" wire:loading.attr="disabled" wire:target="save">
-                                <span wire:loading.remove wire:target="save"><i class="fas fa-check mr-1"></i>Save template</span>
-                                <span wire:loading wire:target="save"><i class="fas fa-circle-notch fa-spin mr-1"></i>Saving…</span>
-                            </button>
-                        @endunless
-                    </div>
                 </div>
                 @endif
             </div>

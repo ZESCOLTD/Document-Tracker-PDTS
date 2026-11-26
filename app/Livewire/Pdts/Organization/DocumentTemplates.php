@@ -117,10 +117,38 @@ class DocumentTemplates extends Component
         $validated = $this->validate();
         $template = $this->editingId ? PdtsDocumentTemplate::withCount('documents')->findOrFail($this->editingId) : new PdtsDocumentTemplate;
 
+        // Documents were made from it: the new file becomes the next version, and this
+        // one stays for those documents (it is retired once the new version is saved).
         if ($this->file && $template->exists && $template->documents_count > 0) {
-            $this->addError('file', 'Documents were made from this template, so its file cannot be replaced. Upload it as a new template instead.');
+            try {
+                $stored = $setup->storeOriginal($this->file->getRealPath(), $this->file->getClientOriginalExtension());
+            } catch (Throwable $e) {
+                report($e);
+                $this->addError('file', str_starts_with($e->getMessage(), 'This') ? $e->getMessage() : 'This file could not be read. Save it again from Word or as a PDF and try again.');
 
-            return null;
+                return null;
+            }
+
+            $next = PdtsDocumentTemplate::create([
+                'name' => trim($validated['name']),
+                'version' => (int) $template->version + 1,
+                'previous_version_id' => $template->id,
+                'description' => trim((string) $validated['description']) ?: null,
+                'document_type_id' => $validated['documentTypeId'] !== '' ? (int) $validated['documentTypeId'] : null,
+                'kind' => $stored['kind'],
+                'original_path' => $stored['path'],
+                'original_filename' => basename($this->file->getClientOriginalName()),
+                'page_count' => $stored['page_count'],
+                // How the form looks carries over; marks belong to the old file's lines.
+                'field_settings' => $template->field_settings,
+                'is_active' => false,
+                'uploaded_by' => Auth::id(),
+            ]);
+
+            $this->cancelEdit();
+            session()->flash('success', "Version {$next->version} uploaded. Version {$template->version} stays in use until this one is saved. Now choose where the QR code goes.");
+
+            return $this->redirectRoute('pdts.organization.document-templates.qr', $next);
         }
 
         $old = [];
@@ -137,6 +165,9 @@ class DocumentTemplates extends Component
             $old = array_filter([$template->original_path, $template->storage_path]);
             // A new file starts again: its QR code has to be placed.
             $template->forceFill([
+                // A file replaces whatever it was built from.
+                'source' => 'upload',
+                'design' => null,
                 'kind' => $stored['kind'],
                 'original_path' => $stored['path'],
                 'storage_path' => null,
@@ -157,8 +188,9 @@ class DocumentTemplates extends Component
             'name' => trim($validated['name']),
             'description' => trim((string) $validated['description']) ?: null,
             'document_type_id' => $validated['documentTypeId'] !== '' ? (int) $validated['documentTypeId'] : null,
-            // Only a template whose QR code has been placed can be offered to authors.
-            'is_active' => $validated['isActive'] && $template->configured_at !== null,
+            // Only a template whose QR code has been placed, and that can be signed
+            // in PDTS or is marked as not signed, can be offered to authors.
+            'is_active' => $validated['isActive'] && $template->configured_at !== null && $template->signingBlocker() === null,
         ])->save();
 
         foreach ($old as $path) {
@@ -178,33 +210,18 @@ class DocumentTemplates extends Component
         return $this->redirectRoute('pdts.organization.document-templates.qr', $template);
     }
 
-    /**
-     * The fields the New Internal Document form shows for a template, in
-     * words, e.g. "Subject, To, From, Date, Amount (extra field)".
-     */
-    public static function formFieldSummary(PdtsDocumentTemplate $template): string
-    {
-        $labels = ['to' => 'To', 'from' => 'From', 'cc' => 'CC', 'office_reference' => 'Office file reference', 'date' => 'Date'];
-
-        $fields = ['Subject'];
-        foreach (PdtsDocumentTemplate::HEADING_FIELDS as $name) {
-            if ($template->usesField($name)) {
-                $fields[] = $labels[$name];
-            }
-        }
-        foreach ($template->customFields() as $label) {
-            $fields[] = $label.' (extra field)';
-        }
-
-        return implode(', ', $fields);
-    }
-
     public function toggleActive(int $id): void
     {
         $template = PdtsDocumentTemplate::findOrFail($id);
 
         if (! $template->is_active && ! $template->isConfigured()) {
             session()->flash('error', "Place the QR code on \"{$template->name}\" before activating it.");
+
+            return;
+        }
+
+        if (! $template->is_active && ($blocker = $template->signingBlocker())) {
+            session()->flash('error', "\"{$template->name}\": {$blocker} Open Review to do it.");
 
             return;
         }
@@ -235,13 +252,14 @@ class DocumentTemplates extends Component
     public function render()
     {
         return view('livewire.pdts.organization.document-templates', [
+            // Only the latest version of each template; earlier ones are on its View page.
             'templates' => PdtsDocumentTemplate::query()
+                ->whereNull('superseded_at')
                 ->with(['documentType', 'uploader'])
                 ->withCount('documents')
                 ->orderBy('name')
                 ->get(),
             'documentTypes' => PdtsDocumentType::query()->orderBy('name')->get(),
-            'placeholders' => PdtsDocumentTemplate::PLACEHOLDERS,
             'editing' => $this->editingId ? PdtsDocumentTemplate::withCount('documents')->find($this->editingId) : null,
         ])->layout('layouts.master', ['title' => 'Document Templates']);
     }

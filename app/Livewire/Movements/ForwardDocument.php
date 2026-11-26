@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Movements;
 
+use App\Enums\MovementStatus;
 use App\Models\PdtsDocument;
 use App\Models\User;
 use App\Services\Documents\CustodyException;
@@ -25,6 +26,9 @@ class ForwardDocument extends Component
     #[Locked]
     public bool $showTrigger = true;
 
+    /** True on a page that already shows where the document is going. */
+    public bool $quiet = false;
+
     public bool $open = false;
 
     public string $search = '';
@@ -45,11 +49,36 @@ class ForwardDocument extends Component
     }
 
     #[On('open-forward.{documentId}')]
-    public function openForm(): void
+    public function openForm(CustodyService $custody): void
     {
         $this->resetForm();
         $this->reset(['notice', 'errorMessage']);
+
+        // The person the document is for, when they do not have it yet: chosen already (it can be changed).
+        $document = PdtsDocument::find($this->documentId);
+        $suggested = $document ? $this->suggestedRecipient($document) : null;
+        if ($suggested && $custody->eligibleRecipients(Auth::user())->whereKey($suggested->id)->exists()) {
+            $this->recipientId = $suggested->id;
+            $this->remarks = 'For your attention';
+        }
+
         $this->open = true;
+    }
+
+    /**
+     * The person an internal document is for (its TO person in PDTS), while
+     * the paper has not reached them yet; null otherwise.
+     */
+    public function suggestedRecipient(PdtsDocument $document): ?User
+    {
+        $recipient = $document->recipient_user_id ? User::find($document->recipient_user_id) : null;
+        if (! $recipient || $document->isDraft() || (int) $recipient->id === (int) Auth::id() || (int) $document->current_custodian_id === (int) $recipient->id) {
+            return null;
+        }
+        $reached = $document->movements()->where('recipient_id', $recipient->id)
+            ->whereIn('status', [MovementStatus::Acknowledged->value, MovementStatus::AwaitingReceipt->value])->exists();
+
+        return $reached ? null : $recipient;
     }
 
     public function closeForm(): void
@@ -94,9 +123,12 @@ class ForwardDocument extends Component
 
             $custody->forward($document, Auth::user(), $recipient, $this->remarks, $messenger);
 
-            $this->notice = $messenger
-                ? "Pickup assigned to {$messenger->name} for delivery to {$recipient->name}. You remain the custodian until pickup is confirmed."
-                : "Forwarded to {$recipient->name}. You remain the custodian until they acknowledge.";
+            // Where something else on the page says it (the document page's bar), no note of its own.
+            $this->notice = match (true) {
+                $this->quiet => null,
+                $messenger !== null => "Pickup assigned to {$messenger->name} for delivery to {$recipient->name}. You remain the custodian until pickup is confirmed.",
+                default => "Forwarded to {$recipient->name}. You remain the custodian until they acknowledge.",
+            };
             $this->errorMessage = null;
             $this->closeForm();
             $this->dispatch('handover-changed');
@@ -110,9 +142,12 @@ class ForwardDocument extends Component
         $user = Auth::user();
         $document = PdtsDocument::find($this->documentId);
 
+        $suggested = $document ? $this->suggestedRecipient($document) : null;
+
         return view('livewire.movements.forward-document', [
             'canForward' => $document && $custody->forwardBlockedReason($document, $user) === null,
             'document' => $document,
+            'suggested' => $suggested,
             'selectedRecipient' => $this->recipientId ? $custody->eligibleRecipients($user)->find($this->recipientId) : null,
             'matches' => $this->open && ! $this->recipientId ? $this->searchRecipients($custody) : collect(),
             'messengers' => $this->open && $this->recipientId

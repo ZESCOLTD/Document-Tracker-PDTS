@@ -14,6 +14,8 @@ enum DocumentStatus: string
     case AwaitingReceipt = 'awaiting_receipt';
     case Received = 'received';
     case Completed = 'completed';
+    // Withdrawn by an administrator (issued in error); its history is kept.
+    case Cancelled = 'cancelled';
 
     public function label(): string
     {
@@ -23,6 +25,7 @@ enum DocumentStatus: string
             self::AwaitingReceipt => 'Awaiting Receipt',
             self::Received => 'Received / In Progress',
             self::Completed => 'Completed',
+            self::Cancelled => 'Cancelled',
         };
     }
 
@@ -38,6 +41,7 @@ enum DocumentStatus: string
             self::AwaitingReceipt => 'Sent, not received yet',
             self::Received => 'Received',
             self::Completed => 'Completed',
+            self::Cancelled => 'Cancelled',
         };
     }
 }

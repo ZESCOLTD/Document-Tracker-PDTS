@@ -27,6 +27,7 @@ class WorkCounts
     {
         $delegatedPrincipalIds = PdtsUserDelegation::query()
             ->activeAt()
+            ->receiving()
             ->where('delegate_user_id', $user->id)
             ->select('principal_user_id');
 

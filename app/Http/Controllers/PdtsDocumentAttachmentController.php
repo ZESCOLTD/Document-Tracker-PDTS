@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PdtsDocument;
 use App\Models\PdtsDocumentAttachment;
+use App\Services\Documents\DocumentAccess;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -12,6 +13,8 @@ class PdtsDocumentAttachmentController extends Controller
     public function __invoke(PdtsDocument $document, PdtsDocumentAttachment $attachment): StreamedResponse
     {
         abort_unless(auth()->user()?->can('documents.view'), 403);
+        // The files are the document: the same people as its page.
+        abort_unless(app(DocumentAccess::class)->canView($document, auth()->user()), 403, 'You are not involved in this document.');
         abort_unless((int) $attachment->pdts_document_id === (int) $document->id, 404);
         abort_unless(Storage::disk('private')->exists($attachment->storage_path), 404);
 

@@ -84,7 +84,8 @@ class Track extends Component
      */
     private function mine(): Builder
     {
-        return PdtsDocument::query()->where('registered_by', Auth::id());
+        // What the user registered, and what was prepared for them to sign.
+        return PdtsDocument::query()->where(fn (Builder $q) => $q->where('registered_by', Auth::id())->orWhere('signatory_id', Auth::id()));
     }
 
     private function inTab(Builder $query, string $tab): Builder

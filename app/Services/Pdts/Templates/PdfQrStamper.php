@@ -195,9 +195,23 @@ class PdfQrStamper
     /** Some writers' offsets are slightly off; look a little either side. */
     private function findXrefNear(int $offset): int
     {
-        $window = substr($this->pdf, max(0, $offset - 20), 60);
-        if (preg_match('/xref|\d+\s+\d+\s+obj/', $window, $m, PREG_OFFSET_CAPTURE)) {
-            return max(0, $offset - 20) + $m[0][1];
+        // Right where it says (most writers, Word included).
+        if (substr($this->pdf, $offset, 4) === 'xref' || preg_match('/\G\d+\s+\d+\s+obj/', $this->pdf, $exact, 0, $offset)) {
+            return $offset;
+        }
+
+        // Otherwise the nearest one. Not the "xref" at the end of "startxref": Word writes
+        // the "startxref" of the previous section just before the next table.
+        $from = max(0, $offset - 20);
+        if (preg_match_all('/(?<!start)xref|\d+\s+\d+\s+obj/', substr($this->pdf, $from, 60), $m, PREG_OFFSET_CAPTURE)) {
+            $best = null;
+            foreach ($m[0] as [, $at]) {
+                if ($best === null || abs($from + $at - $offset) < abs($best - $offset)) {
+                    $best = $from + $at;
+                }
+            }
+
+            return $best;
         }
 
         return $offset;

@@ -84,10 +84,14 @@ class UtilsController extends Controller
     public function getManNumber(Request $request)
     {
 
-        $dataset = PhrisUserDetails::select('con_per_no', 'name')
-            // ->whereRaw("LOWER(con_per_no) LIKE '%{$search}%'")
-            ->where('con_per_no', $request->con_per_no)
-            ->first();
+        $dataset = $request->filled('con_per_no')
+            ? PhrisUserDetails::select('con_per_no', 'name')->where('con_per_no', $request->con_per_no)->first()
+            : null;
+
+        // An unknown or missing man number is "not found", not a server error.
+        if ($dataset === null) {
+            return response()->json(['message' => 'No employee with that man number.'], 404);
+        }
 
         $results = [
             'id' => $dataset->con_per_no,

@@ -33,15 +33,16 @@ class CustodyService
         'other' => 'Other',
     ];
 
-    public function complete(PdtsDocument $document, User $user, string $action, string $reason): PdtsDocument
+    public function complete(PdtsDocument $document, User $user, string $action, string $reason, ?string $fileReference = null): PdtsDocument
     {
         $reason = $this->cleanReason($reason);
+        $fileReference = $this->cleanOptionalText($fileReference, 'File reference');
 
         if (! array_key_exists($action, self::COMPLETION_ACTIONS)) {
             throw new CustodyException('Choose the action completed.');
         }
 
-        return DB::transaction(function () use ($document, $user, $action, $reason) {
+        return DB::transaction(function () use ($document, $user, $action, $reason, $fileReference) {
             $locked = $this->lockDocument($document->getKey());
 
             if ((int) $locked->current_custodian_id !== (int) $user->getKey()) {
@@ -52,12 +53,17 @@ class CustodyService
                 throw new CustodyException('Only a received document with no pending handover can be completed.');
             }
 
-            $locked->update(['status' => DocumentStatus::Completed->value]);
+            $locked->update([
+                'status' => DocumentStatus::Completed->value,
+                'completed_at' => now(),
+                'completed_by' => $user->getKey(),
+                'file_reference' => $fileReference,
+            ]);
             $locked->auditLogs()->create([
                 'actor_id' => $user->getKey(),
                 'occurred_at' => now(),
                 'action' => 'document_completed',
-                'details' => ['action_type' => $action, 'reason' => $reason],
+                'details' => array_filter(['action_type' => $action, 'reason' => $reason, 'file_reference' => $fileReference]),
             ]);
 
             return $locked;
@@ -472,28 +478,14 @@ class CustodyService
     }
 
     /**
-     * People involved in the document, plus anyone who can view audit records.
-     * The same rule covers access to the scanned copy, so a recipient can check
-     * the paper against the scan before acknowledging.
+     * People involved in the document, plus anyone who can view audit records
+     * (DocumentAccess: also the signing officer, the person it is for and the
+     * copies). The same rule covers access to the scanned copy, so a recipient
+     * can check the paper against the scan before acknowledging.
      */
     public function canViewHistory(PdtsDocument $document, User $user): bool
     {
-        $userId = $user->getKey();
-
-        return (int) $document->current_custodian_id === (int) $userId
-            || (int) $document->registered_by === (int) $userId
-            || $user->can('audit.view')
-            || $document->movements()
-                ->where(fn (Builder $query) => $query
-                    ->where('sender_id', $userId)
-                    ->orWhere('recipient_id', $userId)
-                    ->orWhere('messenger_id', $userId))
-                ->exists()
-            || PdtsUserDelegation::query()
-                ->activeAt()
-                ->where('delegate_user_id', $userId)
-                ->whereIn('principal_user_id', $document->movements()->select('recipient_id'))
-                ->exists();
+        return app(DocumentAccess::class)->canView($document, $user);
     }
 
     /**
@@ -573,6 +565,7 @@ class CustodyService
     {
         return PdtsUserDelegation::query()
             ->activeAt()
+            ->receiving()
             ->where('principal_user_id', $movement->recipient_id)
             ->where('delegate_user_id', $user->getKey())
             ->exists();
@@ -586,6 +579,7 @@ class CustodyService
         return User::permission('documents.acknowledge')
             ->whereIn('id', PdtsUserDelegation::query()
                 ->activeAt()
+                ->receiving()
                 ->where('principal_user_id', $principal->getKey())
                 ->select('delegate_user_id'))
             ->where('is_banned', false)

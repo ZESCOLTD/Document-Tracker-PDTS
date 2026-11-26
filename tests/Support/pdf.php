@@ -91,3 +91,17 @@ function pdtsTestPdfModern(): string
 
     return $pdf."startxref\n$xrefOffset\n%%EOF\n";
 }
+
+/**
+ * A PDF as Microsoft Word saves it: an update at the end whose cross-reference
+ * table is empty ("xref 0 0") and points back to the one before, written
+ * straight after that one's "startxref".
+ */
+function pdtsTestPdfWord(): string
+{
+    $pdf = pdtsTestPdfClassic();
+    preg_match('/startxref\n(\d+)\n%%EOF\n$/', $pdf, $m);
+    $update = strlen($pdf);
+
+    return $pdf."xref\n0 0\ntrailer\n<< /Size 5 /Root 1 0 R /Prev {$m[1]} >>\nstartxref\n$update\n%%EOF\n";
+}

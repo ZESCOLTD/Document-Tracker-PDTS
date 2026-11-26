@@ -18,9 +18,15 @@ class DocumentTypes extends Component
     protected string $paginationTheme = 'bootstrap';
 
     public string $search = '';
+
     public ?int $editingId = null;
+
     public string $name = '';
+
     public bool $isActive = true;
+
+    // How many years completed documents of this type are kept (empty: not set).
+    public string $retentionYears = '';
 
     // The add/edit form is shown in a pop-up.
     public bool $showForm = false;
@@ -35,6 +41,7 @@ class DocumentTypes extends Component
         return [
             'name' => ['required', 'string', 'max:120', Rule::unique('pdts_document_types', 'name')->ignore($this->editingId)],
             'isActive' => ['boolean'],
+            'retentionYears' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
     }
 
@@ -52,13 +59,14 @@ class DocumentTypes extends Component
         $this->editingId = $type->id;
         $this->name = $type->name;
         $this->isActive = $type->is_active;
+        $this->retentionYears = (string) ($type->retention_years ?? '');
         $this->resetValidation();
     }
 
     public function cancelEdit(): void
     {
         $this->showForm = false;
-        $this->reset(['editingId', 'name']);
+        $this->reset(['editingId', 'name', 'retentionYears']);
         $this->isActive = true;
         $this->resetValidation();
     }
@@ -67,8 +75,12 @@ class DocumentTypes extends Component
     {
         $validated = $this->validate();
 
-        $type = $this->editingId ? PdtsDocumentType::findOrFail($this->editingId) : new PdtsDocumentType();
-        $type->fill(['name' => trim($validated['name']), 'is_active' => $validated['isActive']])->save();
+        $type = $this->editingId ? PdtsDocumentType::findOrFail($this->editingId) : new PdtsDocumentType;
+        $type->fill([
+            'name' => trim($validated['name']),
+            'is_active' => $validated['isActive'],
+            'retention_years' => $validated['retentionYears'] !== '' && $validated['retentionYears'] !== null ? (int) $validated['retentionYears'] : null,
+        ])->save();
 
         session()->flash('success', $this->editingId ? 'Document type updated.' : 'Document type added.');
         $this->cancelEdit();

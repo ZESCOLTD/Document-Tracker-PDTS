@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Pdts\Documents\Index;
 use App\Livewire\Pdts\Documents\InternalDocument;
 use App\Livewire\Pdts\Documents\Show;
 use App\Livewire\Pdts\Organization\DocumentTemplates;
@@ -11,6 +12,7 @@ use App\Models\PdtsDocumentType;
 use App\Models\PdtsOffice;
 use App\Models\User;
 use App\Services\Documents\CustodyService;
+use App\Services\Pdts\InternalDocuments;
 use App\Services\Pdts\Templates\DocxTemplateFiller;
 use App\Services\Pdts\Templates\QrCodePng;
 use Illuminate\Http\UploadedFile;
@@ -156,10 +158,10 @@ test('only the author can upload the signed scan', function () {
     $other = User::factory()->create(['man_no' => 'INT-0003']);
     $other->givePermissionTo('documents.view');
 
-    Livewire::actingAs($other)->test(Show::class, ['document' => $document])
-        ->set('signedScan', UploadedFile::fake()->createWithContent('signed.pdf', "%PDF-1.4\n%%EOF"))
-        ->call('uploadSignedScan')
-        ->assertHasErrors('signedScan');
+    // Someone not involved does not get the draft's page at all, nor can they upload to it.
+    Livewire::actingAs($other)->test(Show::class, ['document' => $document])->assertForbidden();
+    expect(fn () => app(InternalDocuments::class)->attachSignedScan($document, $other, UploadedFile::fake()->createWithContent('signed.pdf', "%PDF-1.4\n%%EOF")))
+        ->toThrow(RuntimeException::class);
 
     expect($document->refresh()->status)->toBe('draft');
 });
@@ -219,4 +221,62 @@ test('scanning a draft shows the author it still needs the signed scan', functio
         ->assertOk()
         ->assertSee($document->reference_number)
         ->assertSee('This is a draft');
+});
+
+test('a draft\'s page shows only what a draft needs: its status in plain words, no movement history, the paper option folded away when there is nothing else', function () {
+    $document = pdtsCreateDraft();
+
+    $page = Livewire::test(Show::class, ['document' => $document]);
+    $page->assertSee('Documents')->assertDontSee('Registered Documents')                    // the way back
+        ->assertDontSee('Draft, signed scan not uploaded')->assertDontSee('Draft: not yet registered')
+        ->assertDontSee('Movement history')                                                    // nothing has moved yet
+        ->assertSee('Prepared by')->assertDontSee('Registered by')
+        ->assertSee('Word file')->assertDontSee('Download Word file');                           // a quiet button
+
+    // This test's template cannot be signed in PDTS: signing on paper is the way, so it is open.
+    expect($page->html())->toMatch('#<details data-test="sign-on-paper"\s+open#');
+
+    // Once registered but not sent: who has it goes in the label; no separate bar, no empty movement history.
+    $document->update(['status' => 'registered']);
+    Livewire::test(Show::class, ['document' => $document->fresh()])
+        ->assertSee('Not sent · with you since')->assertDontSee('Movement history')->assertSee('Registered by')
+        ->assertDontSeeHtml('class="custody"');
+});
+
+test('a registered internal document offers its cover sheet, and no Revise', function () {
+    $document = pdtsCreateDraft();
+    $document->update(['status' => 'registered']);
+
+    Livewire::test(Show::class, ['document' => $document->fresh()])
+        ->assertViewHas('canPrintCoverSheet', true)->assertDontSee('Revise')->assertDontSeeHtml('data-test="more-actions"');
+    $this->get(route('pdts.documents.cover-sheet', $document))->assertOk();
+
+    // Once it has moved, the movement history is there and the holder is shown again.
+    $recipient = User::factory()->create(['man_no' => 'INT-0099']);
+    $recipient->givePermissionTo(['documents.view', 'documents.acknowledge']);
+    app(CustodyService::class)->forward($document->fresh(), $this->author, $recipient);
+
+    Livewire::test(Show::class, ['document' => $document->fresh()])
+        ->assertSee('Movement history')->assertDontSee('Not sent · with');
+});
+
+test('a discarded draft is locked and shows only what is left of it: no Word file, no recipient card, no copy, Discarded in the list', function () {
+    $document = pdtsCreateDraft();
+    $boss = User::factory()->create(['man_no' => 'INT-0077', 'name' => 'Shubart Nyimbili']);
+    $document->update(['recipient_user_id' => $boss->id]);
+
+    Livewire::test(Show::class, ['document' => $document->fresh()])
+        ->assertSeeHtml('data-test="distribution"')->assertSee('Word file');
+
+    Livewire::test(Show::class, ['document' => $document->fresh()])
+        ->set('discardReason', 'Raised in error')->call('discardDraft')->assertHasNoErrors();
+
+    Livewire::test(Show::class, ['document' => $document->fresh()])
+        ->assertSee('Draft discarded')->assertSee('Discarded by Racheal Inonge Zekko')->assertSee('Raised in error')
+        ->assertDontSeeHtml('data-test="status-pill"')->assertDontSee('Word file')
+        ->assertDontSeeHtml('data-test="distribution"')->assertDontSee('Scanned copy');
+    $this->get(route('pdts.documents.word', $document))->assertForbidden();
+
+    $list = Livewire::test(Index::class)->assertSee('Discarded')->html();
+    expect($list)->toContain($document->reference_number);
 });

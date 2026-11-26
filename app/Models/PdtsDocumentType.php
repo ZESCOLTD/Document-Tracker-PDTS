@@ -10,10 +10,12 @@ class PdtsDocumentType extends Model
     protected $fillable = [
         'name',
         'is_active',
+        'retention_years',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'retention_years' => 'integer',
     ];
 
     public function documents(): HasMany

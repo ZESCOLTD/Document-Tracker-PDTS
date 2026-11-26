@@ -11,41 +11,36 @@ use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * Installs the ZESCO templates used for QR-coded internal documents, from the
- * files in database/seeders/templates, with the QR code where it was placed.
+ * Installs ZESCO's Internal Memo template, with its QR code placed, so
+ * internal memos can be created and signed in PDTS straight away. Other
+ * templates are added through Configurations as ZESCO supplies them.
  *
- * Each template goes through the same steps as an upload in Configurations
- * (keep the original, place the QR code, prepare the file), so the result is
- * the same as adding it by hand. A template whose name already exists is left
- * alone, so the seeder can be run again safely.
+ * It goes through the same steps as an upload in Configurations (keep the
+ * original, place the QR code, prepare the file). A template whose name
+ * already exists is left alone, so the seeder can be run again safely.
  */
 class PdtsDocumentTemplateSeeder extends Seeder
 {
-    /** name, file, document type, and QR placement (page, mm from left, mm from top, size in mm) */
+    /**
+     * name, file, document type, QR placement (page, mm from left, mm from top,
+     * size in mm), and the form's own labels and settings, as set up in
+     * Configurations.
+     */
     private const TEMPLATES = [
         [
-            'name' => 'Internal Memorandum',
-            'file' => 'ZESCO_Memorandum_Template.docx',
+            'name' => 'Internal Memo',
+            'file' => 'ZESCO_Internal_Memo.docx',
             'type' => 'Memorandum',
-            'placement' => ['page' => 'first', 'x' => 10, 'y' => 10, 'size' => 16],
-        ],
-        [
-            'name' => 'Petty Cash VoucherP',
-            'file' => 'Petty_Cash_VoucherP.pdf',
-            'type' => 'Request / Submission',
-            'placement' => ['page' => 'first', 'x' => 79.7, 'y' => 3.4, 'size' => 15],
-        ],
-        [
-            'name' => 'Monthly Report Template',
-            'file' => 'Monthly_Report_Template.docx',
-            'type' => 'Report',
-            'placement' => ['page' => 'first', 'x' => 164.5, 'y' => 34.9, 'size' => 17],
-        ],
-        [
-            'name' => 'Petty Cash Voucher',
-            'file' => 'Petty_Cash_Voucher.docx',
-            'type' => 'Procurement Document',
-            'placement' => ['page' => 'first', 'x' => 91.9, 'y' => 4.8, 'size' => 24],
+            'placement' => ['page' => 'first', 'x' => 14.2, 'y' => 23.2, 'size' => 15],
+            'labels' => ['to' => 'To', 'from' => 'From', 'cc' => 'Cc', 'office_reference' => 'Ref', 'date' => 'Date', 'text_body' => 'Body'],
+            'settings' => [
+                'to' => ['auto' => 'none', 'type' => 'text'],
+                'from' => ['auto' => 'none', 'type' => 'text'],
+                'cc' => ['auto' => 'none', 'type' => 'text'],
+                'office_reference' => ['auto' => 'none', 'type' => 'text'],
+                'date' => ['auto' => 'none', 'type' => 'text'],
+                'text_body' => ['auto' => 'none', 'type' => 'long'],
+            ],
         ],
     ];
 
@@ -78,12 +73,18 @@ class PdtsDocumentTemplateSeeder extends Seeder
                     'original_path' => $stored['path'],
                     'original_filename' => $item['file'],
                     'page_count' => $stored['page_count'],
+                    'field_settings' => $item['settings'] ?? null,
                     'is_active' => false,
                     'uploaded_by' => $uploader,
                 ]);
 
                 // Places the QR code, prepares the file and makes it available to authors.
                 $setup->save($template, $item['placement']);
+
+                // The form's labels as set up in Configurations, over those read from the file.
+                if (! empty($item['labels'])) {
+                    $template->forceFill(['field_labels' => array_merge((array) $template->fresh()->field_labels, $item['labels'])])->save();
+                }
 
                 $this->command?->info("  Template \"{$item['name']}\" installed.");
             } catch (Throwable $e) {

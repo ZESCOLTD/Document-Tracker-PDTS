@@ -108,6 +108,18 @@ class ScanPage extends Component
         });
     }
 
+    /** The messenger has handed the paper to the recipient; they then confirm receipt. */
+    public function confirmDelivery(CustodyService $custody): void
+    {
+        $user = $this->userOrFail();
+
+        $this->run(function () use ($custody, $user) {
+            $movement = $custody->confirmDelivery($this->pendingOrFail(), $user);
+
+            return 'Delivery confirmed. '.($movement->recipient?->name ?? 'The recipient').' now confirms receipt.';
+        });
+    }
+
     public function acknowledge(CustodyService $custody): void
     {
         $user = $this->userOrFail();
@@ -159,8 +171,8 @@ class ScanPage extends Component
     {
         $this->validate([
             'completionAction' => ['required', Rule::in(array_keys(CustodyService::COMPLETION_ACTIONS))],
-            'reason' => ['required', 'string', 'max:1000'],
-        ], ['completionAction.required' => 'Choose what was done.', 'reason.required' => 'Add a short remark.']);
+            'reason' => ['required', 'string', 'min:3', 'max:1000'],
+        ], ['completionAction.required' => 'Choose what was done.', 'reason.required' => 'Add a short remark.', 'reason.min' => 'Add a short remark on what was done.']);
 
         $this->run(function () use ($custody) {
             $custody->complete($this->document(), $this->userOrFail(), $this->completionAction, $this->reason);
@@ -246,10 +258,12 @@ class ScanPage extends Component
                 'can' => [
                     // View-only: reference, where it is going and who has it.
                     'pickup' => false,
+                    'deliver' => false,
                     'acknowledge' => false,
                     'decline' => false, 'cancel' => false, 'forward' => false, 'sendBack' => false, 'complete' => false,
                 ],
                 'waitingForPickup' => false,
+                'waitingForDelivery' => false,
                 'heldSince' => $document->latestReceipt?->acknowledged_at ?? $document->registered_at,
                 'events' => $tracker->for($document)['events'],
                 'alreadyReported' => false,
@@ -266,6 +280,7 @@ class ScanPage extends Component
         if ($involved) {
             $can = [
                 'pickup' => $pending && (int) $pending->messenger_id === (int) $user->id && ! $pending->picked_up_at,
+                'deliver' => $pending && (int) $pending->messenger_id === (int) $user->id && $pending->picked_up_at && ! $pending->delivered_at,
                 'acknowledge' => $pending && $custody->isRecipientOrDelegate($pending, $user) && $user->can('documents.acknowledge'),
                 'decline' => $pending && (int) $pending->recipient_id === (int) $user->id,
                 'cancel' => $pending && $custody->canCancel($pending, $user),
@@ -283,7 +298,9 @@ class ScanPage extends Component
             'status' => $status,
             'isHolder' => $isHolder,
             'can' => $can,
+            // With a messenger, receipt is confirmed once they have picked it up and delivered it.
             'waitingForPickup' => $pending && $pending->messenger_id && ! $pending->picked_up_at,
+            'waitingForDelivery' => $pending && $pending->messenger_id && $pending->picked_up_at && ! $pending->delivered_at,
             'heldSince' => $document->latestReceipt?->acknowledged_at ?? $document->registered_at,
             // The journey is shown here, so people on a phone stay on this page.
             'events' => $involved ? $tracker->for($document)['events'] : [],

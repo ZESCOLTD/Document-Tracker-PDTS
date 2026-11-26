@@ -10,6 +10,7 @@ use App\Models\PdtsDocument;
 use App\Models\User;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
+use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Database\Connection;
 use Illuminate\Database\ConnectionResolver;
@@ -19,6 +20,7 @@ use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\PaginationState;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\RouteCollection;
 use Illuminate\Routing\UrlGenerator;
@@ -38,6 +40,9 @@ beforeEach(function () {
     $this->previousResolver = Model::getConnectionResolver();
     $this->app = new Application(dirname(__DIR__, 2));
     $this->app->instance('config', new Repository);
+    // A request of its own, and pagination reading it, so the result does not depend on tests run before this one.
+    $this->app->instance('request', Request::create('http://localhost'));
+    PaginationState::resolveUsing($this->app);
     $this->app->singleton(DataStore::class);
     Facade::clearResolvedInstances();
     Facade::setFacadeApplication($this->app);
@@ -47,6 +52,12 @@ beforeEach(function () {
     $actor->id = 7;
     $guard->method('user')->willReturn($actor);
     Auth::swap($guard);
+    // The signed-in user here oversees everything (DocumentAccess), so the
+    // registered-documents queries show only the filters under test.
+    $gate = $this->createMock(Gate::class);
+    $gate->method('forUser')->willReturnSelf();
+    $gate->method('check')->willReturn(true);
+    $this->app->instance(Gate::class, $gate);
 
     $connection = $this->getMockBuilder(Connection::class)->setConstructorArgs([null, 'testing'])->onlyMethods(['select'])->getMock();
     $connection->expects($this->never())->method('select');
@@ -293,9 +304,10 @@ describe('workflow counter cards', function () {
         [Deliveries::class, 'deliveriesQuery', 'statusFilter', 'active', 'in-transit', [7, 'awaiting_receipt'], '"picked_up_at" is not null'],
         [Deliveries::class, 'deliveriesQuery', 'statusFilter', 'active', 'awaiting-receipt', [7, 'awaiting_receipt'], '"delivered_at" is not null'],
         [Deliveries::class, 'deliveriesQuery', 'statusFilter', 'active', 'completed', [7, 'acknowledged'], '"status" = ?'],
-        [Track::class, 'documentsQuery', 'tab', 'completed', 'all', [7], '"registered_by" = ?'],
-        [Track::class, 'documentsQuery', 'tab', 'all', 'in-progress', [7, 'registered', 'awaiting_receipt', 'received'], '"status" in (?, ?, ?)'],
-        [Track::class, 'documentsQuery', 'tab', 'all', 'completed', [7, 'completed'], '"status" = ?'],
+        // Mine: registered by me, or mine to sign.
+        [Track::class, 'documentsQuery', 'tab', 'completed', 'all', [7, 7], '"registered_by" = ?'],
+        [Track::class, 'documentsQuery', 'tab', 'all', 'in-progress', [7, 7, 'registered', 'awaiting_receipt', 'received'], '"status" in (?, ?, ?)'],
+        [Track::class, 'documentsQuery', 'tab', 'all', 'completed', [7, 7, 'completed'], '"status" = ?'],
         [DocumentIndex::class, 'documentsQuery', 'statusFilter', 'completed', 'all', [], 'select * from "pdts_documents"'],
         [DocumentIndex::class, 'documentsQuery', 'statusFilter', 'all', 'registered', ['registered'], '"status" = ?'],
         [DocumentIndex::class, 'documentsQuery', 'statusFilter', 'all', 'awaiting_receipt', ['awaiting_receipt'], '"status" = ?'],

@@ -37,6 +37,12 @@ class PdtsAccessSeeder extends Seeder
             'configuration.manage',
             'settings.manage',
             'admin.email_log.view',
+            // Let secretaries/assistants prepare documents for one to sign. Directors, Senior Managers and
+            // Managers have this by their grade (config/pdts.php); this permission is only an exception,
+            // given to a named person on purpose, never through a role.
+            'documents.authorise_preparers',
+            // ICT: verify employees' signatures before they can be used to sign.
+            'signatures.verify',
         ];
 
         foreach ($permissions as $permission) {
@@ -59,8 +65,8 @@ class PdtsAccessSeeder extends Seeder
         $roles = [
             'Originating Employee' => $employeePermissions,
             'Supervisor' => $employeePermissions,
-            'Manager' => [...$employeePermissions],
-            'Director / Final Recipient' => [...$employeePermissions],
+            'Manager' => $employeePermissions,
+            'Director / Final Recipient' => $employeePermissions,
             'Management / Auditor' => [
                 'dashboard.view',
                 'documents.view',
@@ -68,7 +74,8 @@ class PdtsAccessSeeder extends Seeder
                 'reports.export',
                 'audit.view',
             ],
-            'System Administrator' => [...$permissions],
+            // Everything except the preparer exception, which goes by grade or to a named person.
+            'System Administrator' => array_values(array_diff($permissions, ['documents.authorise_preparers'])),
         ];
 
         foreach ($roles as $name => $rolePermissions) {

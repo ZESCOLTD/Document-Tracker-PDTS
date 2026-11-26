@@ -24,27 +24,36 @@
                 <thead>
                     <tr>
                         <th>Reference</th>
-                        <th>Title / Subject</th>
+                        <th class="text-nowrap">Title / Subject</th>
                         <th>Type</th>
-                        <th>Origin</th>
+                        <th>Department</th>
                         <th>Current custodian</th>
                         <th>Status</th>
-                        <th>Registered</th>
+                        <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($documents as $document)
                         <tr>
-                            <td><a href="{{ route('pdts.documents.show', $document) }}" class="font-weight-bold">{{ $document->reference_number }}</a></td>
-                            <td>
+                            {{-- The reference on one line: it is what people look for. --}}
+                            <td class="text-nowrap"><a href="{{ route('pdts.documents.show', $document) }}" class="font-weight-bold">{{ $document->reference_number }}</a></td>
+                            <td style="min-width: 11rem;">
                                 <div>{{ $document->title }}</div>
-                                <small class="text-muted">{{ $document->subject }}</small>
+                                {{-- The subject only when it says something the title does not. --}}
+                                @if (trim((string) $document->subject) !== '' && mb_strtolower(trim((string) $document->subject)) !== mb_strtolower(trim((string) $document->title)))
+                                    <small class="text-muted">{{ $document->subject }}</small>
+                                @endif
                             </td>
                             <td>{{ $document->documentType->name }}</td>
-                            <td>{{ $document->originating_office }}<br><small class="text-muted">{{ collect([$document->originating_department, $document->originating_directorate])->filter()->implode(' · ') }}</small></td>
+                            {{-- The department alone, in full, wrapping if long (the directorate when there is no department). --}}
+                            <td style="min-width: 9rem; max-width: 13rem;">{{ $document->originating_department ?: $document->originating_directorate }}</td>
                             <td>{{ $document->currentCustodian->name }}</td>
-                            <td><span class="badge text-white" style="background: {{ match ($document->status) { 'received' => '#093f42', 'awaiting_receipt' => '#e8890c', default => '#6c757d' } }};">{{ str($document->status)->replace('_', ' ')->title() }}</span></td>
-                            <td>{{ $document->registered_at->format('d M Y H:i') }}</td>
+                            {{-- A discarded draft is not a live draft: it says so, in a lighter grey. --}}
+                            @php $discarded = $document->status === 'draft' && $document->signature_status === 'discarded'; @endphp
+                            <td><span class="badge text-white" style="background: {{ $discarded ? '#adb5bd' : match ($document->status) { 'received' => '#093f42', 'awaiting_receipt' => '#e8890c', default => '#6c757d' } }};">{{ $discarded ? 'Discarded' : str($document->status)->replace('_', ' ')->title() }}</span></td>
+                            {{-- A draft's date is when it was created; it is registered when signed. --}}
+                            {{-- The year only when it is not this year; the full date when pointed at. --}}
+                            <td title="{{ ($document->status === 'draft' ? 'Created ' : 'Registered ').$document->registered_at->format('d M Y, H:i') }}"><span class="text-nowrap">{{ $document->registered_at->format($document->registered_at->isCurrentYear() ? 'd M' : 'd M Y') }}</span><br><small class="text-muted">{{ $document->registered_at->format('H:i') }}</small></td>
                         </tr>
                     @empty
                         <tr>

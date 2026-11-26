@@ -11,6 +11,8 @@ class PdtsUserDelegation extends Model
     protected $fillable = [
         'principal_user_id',
         'delegate_user_id',
+        'can_receive',
+        'can_prepare',
         'granted_by',
         'starts_at',
         'expires_at',
@@ -22,7 +24,26 @@ class PdtsUserDelegation extends Model
         'starts_at' => 'datetime',
         'expires_at' => 'datetime',
         'revoked_at' => 'datetime',
+        'can_receive' => 'boolean',
+        'can_prepare' => 'boolean',
     ];
+
+    /** Delegations that let the delegate receive (acknowledge) documents for the principal. */
+    public function scopeReceiving(Builder $query): Builder
+    {
+        return $query->where('can_receive', true);
+    }
+
+    /** Delegations that let the delegate prepare documents for the principal to sign. */
+    public function scopePreparing(Builder $query): Builder
+    {
+        return $query->where('can_prepare', true);
+    }
+
+    public function isActive(): bool
+    {
+        return ! $this->revoked_at && $this->starts_at->lte(now()) && (! $this->expires_at || $this->expires_at->gt(now()));
+    }
 
     public function principal(): BelongsTo
     {

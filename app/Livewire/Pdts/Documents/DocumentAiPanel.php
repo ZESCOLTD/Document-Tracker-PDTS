@@ -4,6 +4,7 @@ namespace App\Livewire\Pdts\Documents;
 
 use App\Models\PdtsDocument;
 use App\Models\PdtsDocumentAttachment;
+use App\Services\Ai\AiTimeLimit;
 use App\Services\Ai\DocumentConversation;
 use App\Services\Ai\DocumentOcrClient;
 use App\Services\Ai\DocumentTrackingContext;
@@ -54,7 +55,7 @@ class DocumentAiPanel extends Component
             if ($this->summary !== []) {
                 return;
             }
-            set_time_limit(max(30, (int) config('services.pdts_ai.timeout', 180) + (int) config('services.azure_openai.timeout', 90) + 15));
+            AiTimeLimit::allow(max(30, (int) config('services.pdts_ai.timeout', 180) + (int) config('services.azure_openai.timeout', 90) + 15));
             if ($this->source === []) {
                 $this->source = $conversation->source($ocr->review($file));
             }
@@ -77,7 +78,7 @@ class DocumentAiPanel extends Component
             if (count($this->messages) >= 10) {
                 throw new RuntimeException('This conversation has reached five questions. Clear the chat to continue with the same scan.');
             }
-            set_time_limit(max(30, (int) config('services.azure_openai.timeout', 90) + 15));
+            AiTimeLimit::allow(max(30, (int) config('services.azure_openai.timeout', 90) + 15));
             $tracking = $this->trackingContext();
             $history = ($tracking['available'] ?? false)
                 ? array_map(fn ($message) => ['role' => $message['role'], 'content' => $message['text']], $this->messages)

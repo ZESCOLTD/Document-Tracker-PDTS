@@ -3,7 +3,9 @@
 namespace App\Livewire\Pdts\Documents;
 
 use App\Models\PdtsDocument;
+use App\Services\Documents\DocumentAccess;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -45,7 +47,8 @@ class Index extends Component
     {
         $filter ??= $this->statusFilter;
 
-        return PdtsDocument::query()->search($this->search)
+        // Only the documents the user is involved in (everything, for Management / Auditor and administrators).
+        return app(DocumentAccess::class)->visibleTo(PdtsDocument::query(), Auth::user())->search($this->search)
             ->when($filter !== 'all' && array_key_exists($filter, self::FILTERS), fn (Builder $query) => $query->where('status', $filter));
     }
 

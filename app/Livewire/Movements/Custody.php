@@ -64,6 +64,9 @@ class Custody extends Component
 
     public string $completionReason = '';
 
+    // Where the completed document is filed (file number or location), for the archive.
+    public string $completionFileReference = '';
+
     public ?string $notice = null;
 
     public ?string $errorMessage = null;
@@ -215,13 +218,13 @@ class Custody extends Component
     public function openComplete(int $documentId): void
     {
         $this->resetValidation();
-        $this->reset(['completionAction', 'completionReason', 'notice', 'errorMessage']);
+        $this->reset(['completionAction', 'completionReason', 'completionFileReference', 'notice', 'errorMessage']);
         $this->completingDocumentId = $documentId;
     }
 
     public function closeComplete(): void
     {
-        $this->reset(['completingDocumentId', 'completionAction', 'completionReason']);
+        $this->reset(['completingDocumentId', 'completionAction', 'completionReason', 'completionFileReference']);
         $this->resetValidation();
     }
 
@@ -229,8 +232,9 @@ class Custody extends Component
     {
         $this->validate([
             'completionAction' => ['required', Rule::in(array_keys(CustodyService::COMPLETION_ACTIONS))],
-            'completionReason' => ['required', 'string', 'max:1000'],
-        ]);
+            'completionReason' => ['required', 'string', 'min:3', 'max:1000'],
+            'completionFileReference' => ['nullable', 'string', 'max:150'],
+        ], ['completionReason.min' => 'Add a short remark on what was done.']);
 
         try {
             $document = PdtsDocument::find($this->completingDocumentId);
@@ -239,7 +243,7 @@ class Custody extends Component
                 throw new CustodyException('This document is no longer available.');
             }
 
-            $custody->complete($document, Auth::user(), $this->completionAction, $this->completionReason);
+            $custody->complete($document, Auth::user(), $this->completionAction, $this->completionReason, $this->completionFileReference);
             $this->notice = "{$document->reference_number} is completed. You are the final holder.";
             $this->errorMessage = null;
             $this->closeComplete();
